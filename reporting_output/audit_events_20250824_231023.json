@@ -1,0 +1,76 @@
+[
+  {
+    "id": "89f4a3acd8b9e1a7",
+    "timestamp": "2025-08-24T23:10:23.061249",
+    "event_type": "task_completed",
+    "level": "info",
+    "source": "demo_agent",
+    "message": "Event: task_completed",
+    "metadata": {
+      "task_id": "demo_task_001",
+      "agent_id": "demo_agent_1",
+      "success": true,
+      "duration_seconds": 45.2
+    },
+    "context": {},
+    "tags": [],
+    "correlation_id": "demo_task_001",
+    "session_id": "045d49d3aed3",
+    "user_id": null
+  },
+  {
+    "id": "908c0a621b895595",
+    "timestamp": "2025-08-24T23:10:23.036725",
+    "event_type": "task_started",
+    "level": "info",
+    "source": "demo_agent",
+    "message": "Event: task_started",
+    "metadata": {
+      "task_id": "demo_task_001",
+      "agent_id": "demo_agent_1",
+      "task_type": "data_processing"
+    },
+    "context": {},
+    "tags": [],
+    "correlation_id": "demo_task_001",
+    "session_id": "045d49d3aed3",
+    "user_id": null
+  },
+  {
+    "id": "461047355526a841",
+    "timestamp": "2025-08-24T23:09:42.441529",
+    "event_type": "task_completed",
+    "level": "info",
+    "source": "demo_agent",
+    "message": "Event: task_completed",
+    "metadata": {
+      "task_id": "demo_task_001",
+      "agent_id": "demo_agent_1",
+      "success": true,
+      "duration_seconds": 45.2
+    },
+    "context": {},
+    "tags": [],
+    "correlation_id": "demo_task_001",
+    "session_id": "3a59b911e5fa",
+    "user_id": null
+  },
+  {
+    "id": "fae0688a19a2f1f5",
+    "timestamp": "2025-08-24T23:09:42.440594",
+    "event_type": "task_started",
+    "level": "info",
+    "source": "demo_agent",
+    "message": "Event: task_started",
+    "metadata": {
+      "task_id": "demo_task_001",
+      "agent_id": "demo_agent_1",
+      "task_type": "data_processing"
+    },
+    "context": {},
+    "tags": [],
+    "correlation_id": "demo_task_001",
+    "session_id": "3a59b911e5fa",
+    "user_id": null
+  }
+]

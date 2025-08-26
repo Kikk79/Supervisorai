@@ -8,10 +8,7 @@ import argparse
 import json
 from pathlib import Path
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent))
-
-from integrated_system import IntegratedReportingSystem, IntegratedReportingConfig, run_demo_scenario
+from .integrated_system import IntegratedReportingSystem, IntegratedReportingConfig, run_demo_scenario
 
 def main():
     """Main entry point"""

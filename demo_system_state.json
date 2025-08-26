@@ -1,0 +1,67 @@
+{
+  "export_timestamp": "2025-08-24T23:10:23.195388",
+  "system_status": {
+    "timestamp": "2025-08-24T23:10:23.195396",
+    "systems": {
+      "alert_system": {
+        "status": "active",
+        "total_alerts": 0,
+        "unresolved": 0
+      },
+      "audit_system": {
+        "status": "active",
+        "total_events": 4,
+        "unique_sessions": 2
+      },
+      "report_generator": {
+        "status": "active"
+      },
+      "confidence_system": {
+        "status": "active",
+        "total_entries": 2,
+        "outcome_coverage": 0.0
+      },
+      "pattern_system": {
+        "status": "active",
+        "total_patterns": 0
+      },
+      "dashboard_system": {
+        "status": "active"
+      }
+    },
+    "config": {
+      "base_output_dir": "reporting_output",
+      "audit_log_file": "audit.jsonl",
+      "audit_db_file": "audit.db",
+      "confidence_data_file": "confidence_data.json",
+      "patterns_file": "patterns.json",
+      "knowledge_base_file": "knowledge_base.json",
+      "alert_config": {
+        "deduplication_window": 30,
+        "email": {
+          "smtp_host": "smtp.gmail.com",
+          "smtp_port": 587,
+          "username": "supervisor@example.com",
+          "password": "app_password",
+          "recipients": [
+            "admin@example.com"
+          ]
+        }
+      },
+      "auto_report_enabled": true,
+      "report_frequency_hours": 24,
+      "dashboard_enabled": true,
+      "dashboard_port": 5000,
+      "real_time_updates": true,
+      "background_processing": true,
+      "max_workers": 4
+    },
+    "background_processing": true
+  },
+  "reports": {
+    "confidence_analysis": "reporting_output/confidence_analysis_20250824_231023.json",
+    "patterns": "reporting_output/patterns_20250824_231023.json",
+    "audit_events": "reporting_output/audit_events_20250824_231023.json",
+    "dashboard": "reporting_output/dashboard_report_20250824_231023.html"
+  }
+}

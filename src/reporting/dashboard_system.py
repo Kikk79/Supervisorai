@@ -671,7 +671,7 @@ class DashboardServer:
     def run(self, debug: bool = False):
         """Run the dashboard server"""
         self.logger.info(f"Starting dashboard server on port {self.port}")
-        self.socketio.run(self.app, host='0.0.0.0', port=self.port, debug=debug)
+        self.socketio.run(self.app, host='0.0.0.0', port=self.port, debug=debug, allow_unsafe_werkzeug=True)
 
 class ComprehensiveDashboardSystem:
     """Main dashboard system"""

@@ -15,7 +15,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Import all reporting components
-from .alert_system import ComprehensiveAlertSystem, Alert
+from .alert_system import RealTimeAlertSystem, Alert
 from .report_generator import PeriodicReportGenerator, TaskReport
 from .audit_system import ComprehensiveAuditSystem, AuditEventType, AuditLevel
 from .confidence_system import ConfidenceReportingSystem
@@ -297,6 +297,13 @@ class IntegratedReportingSystem:
         self.output_dir = Path(self.config.base_output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
+        # Setup logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        self.logger = logging.getLogger(__name__)
+
         # Initialize all subsystems
         self.systems = self._initialize_systems()
         
@@ -306,13 +313,6 @@ class IntegratedReportingSystem:
         # Setup background processing
         self.background_processor = BackgroundProcessor(self.systems, self.config)
         
-        # Setup logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-        self.logger = logging.getLogger(__name__)
-        
         self.logger.info("Integrated reporting system initialized")
     
     def _initialize_systems(self) -> Dict[str, Any]:
@@ -321,7 +321,7 @@ class IntegratedReportingSystem:
         
         try:
             # Alert system
-            systems['alert_system'] = ComprehensiveAlertSystem(
+            systems['alert_system'] = RealTimeAlertSystem(
                 self.config.alert_config
             )
             
