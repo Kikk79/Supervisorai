@@ -1,7 +1,7 @@
 {
-  "export_timestamp": "2025-08-24T23:10:23.195388",
+  "export_timestamp": "2025-08-26T17:43:33.890024",
   "system_status": {
-    "timestamp": "2025-08-24T23:10:23.195396",
+    "timestamp": "2025-08-26T17:43:33.890033",
     "systems": {
       "alert_system": {
         "status": "active",
@@ -10,15 +10,15 @@
       },
       "audit_system": {
         "status": "active",
-        "total_events": 4,
-        "unique_sessions": 2
+        "total_events": 6,
+        "unique_sessions": 3
       },
       "report_generator": {
         "status": "active"
       },
       "confidence_system": {
         "status": "active",
-        "total_entries": 2,
+        "total_entries": 3,
         "outcome_coverage": 0.0
       },
       "pattern_system": {
@@ -59,9 +59,9 @@
     "background_processing": true
   },
   "reports": {
-    "confidence_analysis": "reporting_output/confidence_analysis_20250824_231023.json",
-    "patterns": "reporting_output/patterns_20250824_231023.json",
-    "audit_events": "reporting_output/audit_events_20250824_231023.json",
-    "dashboard": "reporting_output/dashboard_report_20250824_231023.html"
+    "confidence_analysis": "reporting_output/confidence_analysis_20250826_174333.json",
+    "patterns": "reporting_output/patterns_20250826_174333.json",
+    "audit_events": "reporting_output/audit_events_20250826_174333.json",
+    "dashboard": "reporting_output/dashboard_report_20250826_174333.html"
   }
 }
