@@ -13,6 +13,7 @@ Unifies all supervisor components into a single, production-ready system:
 import asyncio
 import json
 import logging
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Union, Callable
@@ -22,34 +23,32 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 
 # Import all subsystems
-from .monitoring import (
-    MonitoringEngine,
-    TaskCompletionMonitor,
-    InstructionAdherenceMonitor,
-    OutputQualityMonitor,
-    ErrorTracker,
-    ResourceUsageMonitor,
-    ConfidenceScorer
-)
+from .monitor_engine import MonitoringEngine
+from .task_monitor import TaskCompletionMonitor
+from .instruction_monitor import InstructionAdherenceMonitor
+from .quality_monitor import OutputQualityMonitor
+from .error_tracker import ErrorTracker
+from .resource_monitor import ResourceUsageMonitor
+from .confidence_scorer import ConfidenceScorer
 
-from .error_handling.error_handling_system import SupervisorErrorHandlingSystem
-from .error_handling.error_types import SupervisorError, ErrorType
+from .error_handling_system import SupervisorErrorHandlingSystem
+from .error_types import SupervisorError, ErrorType
 
-from .reporting.integrated_system import (
+from ..reporting.integrated_system import (
+    IntegratedReportingSystem,
     IntegratedReportingConfig,
     SystemIntegrationEvent,
     EventRouter,
     BackgroundProcessor
 )
+from ..reporting.alert_system import RealTimeAlertSystem as ComprehensiveAlertSystem
+from ..reporting.report_generator import PeriodicReportGenerator
+from ..reporting.audit_system import ComprehensiveAuditSystem, AuditEventType, AuditLevel
+from ..reporting.confidence_system import ConfidenceReportingSystem
+from ..reporting.pattern_system import ComprehensivePatternSystem
+from ..reporting.dashboard_system import ComprehensiveDashboardSystem
 
-from .reporting.alert_system import ComprehensiveAlertSystem
-from .reporting.report_generator import PeriodicReportGenerator
-from .reporting.audit_system import ComprehensiveAuditSystem, AuditEventType, AuditLevel
-from .reporting.confidence_system import ConfidenceReportingSystem
-from .reporting.pattern_system import ComprehensivePatternSystem
-from .reporting.dashboard_system import ComprehensiveDashboardSystem
-
-from .supervisor_agent.core import SupervisorCore
+from .core import SupervisorCore
 
 @dataclass
 class SupervisorConfig:
@@ -197,8 +196,9 @@ class CustomFrameworkAdapter:
 class IntegratedSupervisor:
     """Main integrated supervisor system that coordinates all components"""
     
-    def __init__(self, config: Optional[SupervisorConfig] = None):
+    def __init__(self, reporting_system: IntegratedReportingSystem, config: Optional[SupervisorConfig] = None):
         self.config = config or SupervisorConfig()
+        self.reporting_system = reporting_system
         self.data_dir = Path(self.config.data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         
@@ -259,59 +259,8 @@ class IntegratedSupervisor:
                 escalation_enabled=self.config.escalation_enabled
             )
         
-        # Reporting system
-        if self.config.reporting_enabled:
-            self._initialize_reporting_system()
+        # Reporting system is now passed in
     
-    def _initialize_reporting_system(self):
-        """Initialize comprehensive reporting system"""
-        output_dir = self.data_dir / "reporting"
-        output_dir.mkdir(exist_ok=True)
-        
-        # Initialize individual reporting components
-        self.alert_system = ComprehensiveAlertSystem()
-        self.report_generator = PeriodicReportGenerator(str(output_dir))
-        self.audit_system = ComprehensiveAuditSystem(
-            log_file=str(output_dir / "audit.jsonl"),
-            db_file=str(output_dir / "audit.db")
-        )
-        self.confidence_system = ConfidenceReportingSystem(
-            data_file=str(output_dir / "confidence_data.json")
-        )
-        self.pattern_system = ComprehensivePatternSystem(
-            patterns_file=str(output_dir / "patterns.json"),
-            knowledge_base_file=str(output_dir / "knowledge_base.json")
-        )
-        
-        if self.config.reporting_enabled:
-            self.dashboard_system = ComprehensiveDashboardSystem(
-                data_dir=str(output_dir),
-                port=5000  # Could be configurable
-            )
-        
-        # Setup event routing
-        systems = {
-            'alert_system': self.alert_system,
-            'audit_system': self.audit_system,
-            'confidence_system': self.confidence_system,
-            'pattern_system': self.pattern_system,
-            'report_generator': self.report_generator
-        }
-        
-        self.event_router = EventRouter(systems)
-        
-        # Setup background processor
-        if self.config.background_processing:
-            reporting_config = IntegratedReportingConfig(
-                base_output_dir=str(output_dir),
-                auto_report_enabled=self.config.auto_reports,
-                report_frequency_hours=self.config.report_frequency_hours,
-                real_time_updates=self.config.real_time_alerts,
-                background_processing=True,
-                max_workers=self.config.max_workers
-            )
-            
-            self.background_processor = BackgroundProcessor(systems, reporting_config)
     
     async def start(self):
         """Start the integrated supervisor system"""
@@ -320,13 +269,9 @@ class IntegratedSupervisor:
         
         self.logger.info("Starting Integrated Supervisor System")
         
-        # Start background processing
-        if hasattr(self, 'background_processor'):
-            self.background_processor.start()
-        
-        # Start dashboard if enabled
-        if hasattr(self, 'dashboard_system') and self.config.reporting_enabled:
-            await self.dashboard_system.start_server()
+        # Start reporting system
+        if self.reporting_system:
+            self.reporting_system.start()
         
         self.is_running = True
         self.logger.info("Integrated Supervisor System started successfully")
@@ -338,13 +283,9 @@ class IntegratedSupervisor:
         
         self.logger.info("Stopping Integrated Supervisor System")
         
-        # Stop background processing
-        if hasattr(self, 'background_processor'):
-            self.background_processor.stop()
-        
-        # Stop dashboard if running
-        if hasattr(self, 'dashboard_system') and self.config.reporting_enabled:
-            await self.dashboard_system.stop_server()
+        # Stop reporting system
+        if self.reporting_system:
+            self.reporting_system.stop()
         
         self.is_running = False
         self.logger.info("Integrated Supervisor System stopped")
@@ -359,7 +300,8 @@ class IntegratedSupervisor:
         """Execute a task under full supervision"""
         
         self.system_stats["tasks_supervised"] += 1
-        
+        start_time = time.time()
+
         try:
             # Start monitoring
             if self.config.monitoring_enabled:
@@ -387,7 +329,7 @@ class IntegratedSupervisor:
                     self.system_stats["errors_handled"] += 1
                     
                     # Route error event
-                    if hasattr(self, 'event_router'):
+                    if self.reporting_system:
                         error_event = SystemIntegrationEvent(
                             event_id=f"error_{task_id}_{datetime.utcnow().timestamp()}",
                             timestamp=datetime.utcnow().isoformat(),
@@ -400,7 +342,7 @@ class IntegratedSupervisor:
                                 "error_handling_result": error_result
                             }
                         )
-                        self.event_router.route_event(error_event)
+                        self.reporting_system.event_router.route_event(error_event)
                     
                     if not error_result.get("success", False):
                         raise e
@@ -411,7 +353,26 @@ class IntegratedSupervisor:
                 result = await asyncio.get_event_loop().run_in_executor(
                     None, task_callable
                 )
-            
+
+            # Extract token usage if available
+            token_data = {}
+            if isinstance(result, dict) and 'usage' in result:
+                usage = result.get('usage', {})
+                token_data = {
+                    'input_tokens': usage.get('prompt_tokens', 0),
+                    'output_tokens': usage.get('completion_tokens', 0),
+                    'total_tokens': usage.get('total_tokens', 0),
+                    'api_call': True
+                }
+
+            # Update resource monitor
+            if self.config.monitoring_enabled and hasattr(self, 'resource_monitor'):
+                resource_data = {
+                    'token_data': token_data,
+                    'execution_time': time.time() - start_time
+                }
+                self.resource_monitor.evaluate_usage(resource_data)
+
             # Validate output if monitoring enabled
             if self.config.monitoring_enabled and result:
                 quality_score = await self.quality_monitor.analyze_output(
@@ -424,11 +385,11 @@ class IntegratedSupervisor:
                     task_type=f"{framework}_task",
                     output_quality=quality_score,
                     error_count=0,  # Would be tracked properly in real implementation
-                    completion_time=1.0  # Would be calculated properly
+                    completion_time=time.time() - start_time
                 )
             
             # Route success event
-            if hasattr(self, 'event_router'):
+            if self.reporting_system:
                 success_event = SystemIntegrationEvent(
                     event_id=f"success_{task_id}_{datetime.utcnow().timestamp()}",
                     timestamp=datetime.utcnow().isoformat(),
@@ -441,7 +402,7 @@ class IntegratedSupervisor:
                         "result_type": type(result).__name__
                     }
                 )
-                self.event_router.route_event(success_event)
+                self.reporting_system.event_router.route_event(success_event)
             
             return {
                 "success": True,

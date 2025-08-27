@@ -3,7 +3,7 @@ import re
 from typing import List, Dict, Any
 from datetime import datetime
 
-from . import QualityMetrics
+from .types import QualityMetrics
 
 
 class QualityAnalyzer:
