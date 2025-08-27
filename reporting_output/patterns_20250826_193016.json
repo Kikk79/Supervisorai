@@ -1,0 +1,142 @@
+[
+  {
+    "id": "2651c016d457",
+    "pattern_type": "usage",
+    "title": "High activity during hour 19:00",
+    "description": "Consistently high event volume at 19:00 (4 events)",
+    "frequency": 4,
+    "first_seen": "2025-08-26T19:27:27.860909",
+    "last_seen": "2025-08-26T19:28:36.764942",
+    "confidence": 1.0,
+    "examples": [
+      {
+        "original": {
+          "timestamp": "2025-08-26T19:28:36.764942",
+          "event_type": "task_completed",
+          "level": "info",
+          "source": "demo_agent",
+          "message": "Event: task_completed",
+          "metadata": {
+            "task_id": "demo_task_001",
+            "agent_id": "demo_agent_1",
+            "success": true,
+            "duration_seconds": 45.2
+          }
+        },
+        "features": {
+          "event_type": "task_completed",
+          "source": "demo_agent",
+          "level": "info",
+          "message_tokens": [
+            "event",
+            "task_completed"
+          ],
+          "timestamp_hour": 19,
+          "timestamp_dow": 1,
+          "metadata_keys": [
+            "task_id",
+            "agent_id",
+            "success",
+            "duration_seconds"
+          ],
+          "has_error": false,
+          "has_timeout": false,
+          "has_retry": false,
+          "numerical_values": [],
+          "agent_id": "demo_agent_1",
+          "task_id": "demo_task_001"
+        },
+        "timestamp": "2025-08-26T19:28:36.764942"
+      },
+      {
+        "original": {
+          "timestamp": "2025-08-26T19:28:36.750803",
+          "event_type": "task_started",
+          "level": "info",
+          "source": "demo_agent",
+          "message": "Event: task_started",
+          "metadata": {
+            "task_id": "demo_task_001",
+            "agent_id": "demo_agent_1",
+            "task_type": "data_processing"
+          }
+        },
+        "features": {
+          "event_type": "task_started",
+          "source": "demo_agent",
+          "level": "info",
+          "message_tokens": [
+            "event",
+            "task_started"
+          ],
+          "timestamp_hour": 19,
+          "timestamp_dow": 1,
+          "metadata_keys": [
+            "task_id",
+            "agent_id",
+            "task_type"
+          ],
+          "has_error": false,
+          "has_timeout": false,
+          "has_retry": false,
+          "numerical_values": [],
+          "agent_id": "demo_agent_1",
+          "task_id": "demo_task_001"
+        },
+        "timestamp": "2025-08-26T19:28:36.750803"
+      },
+      {
+        "original": {
+          "timestamp": "2025-08-26T19:27:27.862321",
+          "event_type": "task_completed",
+          "level": "info",
+          "source": "demo_agent",
+          "message": "Event: task_completed",
+          "metadata": {
+            "task_id": "demo_task_001",
+            "agent_id": "demo_agent_1",
+            "success": true,
+            "duration_seconds": 45.2
+          }
+        },
+        "features": {
+          "event_type": "task_completed",
+          "source": "demo_agent",
+          "level": "info",
+          "message_tokens": [
+            "event",
+            "task_completed"
+          ],
+          "timestamp_hour": 19,
+          "timestamp_dow": 1,
+          "metadata_keys": [
+            "task_id",
+            "agent_id",
+            "success",
+            "duration_seconds"
+          ],
+          "has_error": false,
+          "has_timeout": false,
+          "has_retry": false,
+          "numerical_values": [],
+          "agent_id": "demo_agent_1",
+          "task_id": "demo_task_001"
+        },
+        "timestamp": "2025-08-26T19:27:27.862321"
+      }
+    ],
+    "conditions": {
+      "hour": 19
+    },
+    "impact": {
+      "hourly_volume": 4,
+      "avg_hourly": 0.16666666666666666
+    },
+    "recommendations": [],
+    "tags": [
+      "temporal",
+      "usage",
+      "hour_19"
+    ]
+  }
+]

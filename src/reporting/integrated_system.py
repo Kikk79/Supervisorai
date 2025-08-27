@@ -14,6 +14,9 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from flask import Flask
+from flask_socketio import SocketIO
+
 # Import all reporting components
 from .alert_system import RealTimeAlertSystem, Alert
 from .report_generator import PeriodicReportGenerator, TaskReport
@@ -75,8 +78,9 @@ class SystemIntegrationEvent:
 class EventRouter:
     """Routes events between different reporting systems"""
     
-    def __init__(self, systems: Dict[str, Any]):
+    def __init__(self, systems: Dict[str, Any], socketio: Optional[SocketIO] = None):
         self.systems = systems
+        self.socketio = socketio
         self.logger = logging.getLogger(__name__)
         self.event_handlers = self._setup_event_handlers()
     
@@ -102,6 +106,12 @@ class EventRouter:
                 handler(event)
             except Exception as e:
                 self.logger.error(f"Error handling event {event.event_id} with {handler.__name__}: {e}")
+
+        if self.socketio:
+            self.logger.info(f"Emitting log_event to socket.io: {event.event_id}")
+            self.socketio.emit('log_event', asdict(event))
+        else:
+            self.logger.info("Socket.io not configured, skipping emit.")
     
     def _handle_task_event(self, event: SystemIntegrationEvent):
         """Handle task-related events"""
@@ -304,18 +314,27 @@ class IntegratedReportingSystem:
         )
         self.logger = logging.getLogger(__name__)
 
+        # Create Flask app and SocketIO instance if dashboard is enabled
+        if self.config.dashboard_enabled:
+            self.app = Flask(__name__)
+            self.app.config['SECRET_KEY'] = 'supervisor_dashboard_secret'
+            self.socketio = SocketIO(self.app, cors_allowed_origins="*")
+        else:
+            self.app = None
+            self.socketio = None
+
         # Initialize all subsystems
-        self.systems = self._initialize_systems()
-        
+        self.systems = self._initialize_systems(self)
+
         # Setup event routing
-        self.event_router = EventRouter(self.systems)
-        
+        self.event_router = EventRouter(self.systems, self.socketio)
+
         # Setup background processing
         self.background_processor = BackgroundProcessor(self.systems, self.config)
         
         self.logger.info("Integrated reporting system initialized")
     
-    def _initialize_systems(self) -> Dict[str, Any]:
+    def _initialize_systems(self, integrated_system_instance) -> Dict[str, Any]:
         """Initialize all reporting subsystems"""
         systems = {}
         
@@ -350,8 +369,11 @@ class IntegratedReportingSystem:
             # Dashboard system (if enabled)
             if self.config.dashboard_enabled:
                 systems['dashboard_system'] = ComprehensiveDashboardSystem(
+                    integrated_system_instance,
                     systems, 
-                    {'dashboard_port': self.config.dashboard_port}
+                    {'dashboard_port': self.config.dashboard_port},
+                    app=self.app,
+                    socketio=self.socketio
                 )
             
             self.logger.info(f"Initialized {len(systems)} reporting systems")
@@ -398,13 +420,17 @@ class IntegratedReportingSystem:
         """Log an event and route it through the system"""
         event_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}_{source}"
         
+        event_data = data or {}
+        if 'message' not in event_data:
+            event_data['message'] = message
+
         # Create integration event
         integration_event = SystemIntegrationEvent(
             event_id=event_id,
             timestamp=datetime.now().isoformat(),
             event_type=event_type,
             source_system=source,
-            data=data or {},
+            data=event_data,
             correlation_id=correlation_id
         )
         
@@ -553,6 +579,9 @@ def run_demo_scenario(system: IntegratedReportingSystem):
     # Start the system
     system.start()
     
+    # Give the server a moment to start up
+    time.sleep(2)
+
     # Log various events
     correlation_id = "demo_task_001"
     
@@ -609,6 +638,10 @@ def run_demo_scenario(system: IntegratedReportingSystem):
     state_file = system.export_complete_system_state("demo_system_state.json")
     print(f"\nSystem state exported to: {state_file}")
     
+    # Keep the server alive for testing
+    print("\n--- Keeping server alive for 15 seconds for testing ---")
+    time.sleep(15)
+
     return system
 
 if __name__ == '__main__':

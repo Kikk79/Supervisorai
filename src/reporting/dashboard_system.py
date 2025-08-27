@@ -297,12 +297,17 @@ class VisualizationGenerator:
 class DashboardServer:
     """Real-time dashboard server using Flask and SocketIO"""
     
-    def __init__(self, systems: Dict[str, Any], port: int = 5000):
+    def __init__(self, integrated_system, systems: Dict[str, Any], port: int = 5000, app=None, socketio=None):
+        self.integrated_system = integrated_system
         self.systems = systems
         self.port = port
-        self.app = Flask(__name__)
-        self.app.config['SECRET_KEY'] = 'supervisor_dashboard_secret'
-        self.socketio = SocketIO(self.app, cors_allowed_origins="*")
+        if app and socketio:
+            self.app = app
+            self.socketio = socketio
+        else:
+            self.app = Flask(__name__)
+            self.app.config['SECRET_KEY'] = 'supervisor_dashboard_secret'
+            self.socketio = SocketIO(self.app, cors_allowed_origins="*")
         
         self.metrics_collector = MetricsCollector()
         self.viz_generator = VisualizationGenerator()
@@ -387,6 +392,28 @@ class DashboardServer:
                     return jsonify({'total_patterns': 0})
             except Exception as e:
                 self.logger.error(f"Error getting patterns: {e}")
+                return jsonify({'error': str(e)}), 500
+
+        @self.app.route('/api/log_event', methods=['POST'])
+        def log_event_api():
+            """API endpoint to log an event"""
+            try:
+                data = request.get_json()
+                event_type = data.get('event_type')
+                source = data.get('source')
+                message = data.get('message')
+                event_data = data.get('data', {})
+
+                if not all([event_type, source, message]):
+                    return jsonify({'error': 'Missing required fields'}), 400
+
+                event_id = self.integrated_system.log_event(
+                    event_type, source, message, event_data
+                )
+
+                return jsonify({'status': 'ok', 'event_id': event_id})
+            except Exception as e:
+                self.logger.error(f"Error in log_event API: {e}")
                 return jsonify({'error': str(e)}), 500
     
     def _setup_background_tasks(self):
@@ -507,6 +534,24 @@ class DashboardServer:
             font-size: 0.9em;
             margin-top: 20px;
         }
+        .log-panel {
+            background: #333;
+            color: #eee;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            grid-column: 1 / -1; /* Span full width */
+        }
+        #log-container {
+            height: 300px;
+            overflow-y: scroll;
+            background: #222;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9em;
+        }
     </style>
 </head>
 <body>
@@ -573,6 +618,13 @@ class DashboardServer:
         </table>
     </div>
     
+    <div class="log-panel">
+        <h3>Live Event Log</h3>
+        <div id="log-container">
+            <!-- Logs will be populated here -->
+        </div>
+    </div>
+
     <div class="last-updated">
         Last updated: <span id="last-updated">--</span>
     </div>
@@ -622,6 +674,20 @@ class DashboardServer:
         socket.on('metrics_update', function(data) {
             updateMetrics(data);
             updateAgents(data.agents);
+        });
+
+        socket.on('log_event', function(data) {
+            const logContainer = document.getElementById('log-container');
+            const logEntry = document.createElement('div');
+
+            const timestamp = new Date(data.timestamp).toLocaleString();
+            const message = `[${timestamp}] [${data.event_type}] [${data.source_system}] ${data.data.message || JSON.stringify(data.data)}`;
+
+            logEntry.textContent = message;
+            logContainer.appendChild(logEntry);
+
+            // Scroll to bottom
+            logContainer.scrollTop = logContainer.scrollHeight;
         });
         
         // Load initial data
@@ -676,13 +742,17 @@ class DashboardServer:
 class ComprehensiveDashboardSystem:
     """Main dashboard system"""
     
-    def __init__(self, systems: Dict[str, Any], config: Optional[Dict[str, Any]] = None):
+    def __init__(self, integrated_system, systems: Dict[str, Any], config: Optional[Dict[str, Any]] = None, app=None, socketio=None):
+        self.integrated_system = integrated_system
         self.systems = systems
         self.config = config or {}
         
         self.dashboard_server = DashboardServer(
+            self.integrated_system,
             systems, 
-            port=self.config.get('dashboard_port', 5000)
+            port=self.config.get('dashboard_port', 5000),
+            app=app,
+            socketio=socketio
         )
         
         logging.basicConfig(

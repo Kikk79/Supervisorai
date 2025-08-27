@@ -1,0 +1,46 @@
+{
+  "period_start": "beginning",
+  "period_end": "2025-08-26T19:30:16.728060",
+  "total_entries": 6,
+  "entries_with_outcomes": 0,
+  "calibration_metrics": {
+    "mean_confidence": 0.0,
+    "mean_accuracy": 0.0,
+    "calibration_error": 0.0,
+    "brier_score": 0.0,
+    "log_loss_score": 0.0,
+    "reliability_diagram_data": {
+      "bin_centers": [],
+      "bin_accuracies": [],
+      "bin_confidences": []
+    },
+    "confidence_bins": []
+  },
+  "trend_data": {
+    "hours": [
+      "2025-08-24T23",
+      "2025-08-26T17",
+      "2025-08-26T19"
+    ],
+    "confidence_trends": [
+      0.87,
+      0.87,
+      0.87
+    ],
+    "accuracy_trends": [
+      0,
+      0,
+      0
+    ],
+    "calibration_trends": [
+      0,
+      0,
+      0
+    ]
+  },
+  "by_agent": {},
+  "by_decision_type": {},
+  "recommendations": [
+    "Only 0/6 confidence entries have outcome feedback. Increase outcome tracking for better calibration analysis."
+  ]
+}

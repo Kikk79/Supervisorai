@@ -1,0 +1,302 @@
+[
+  {
+    "id": "a51421fbe84dfe60",
+    "timestamp": "2025-08-26T19:33:05.869414",
+    "event_type": "task_completed",
+    "level": "info",
+    "source": "demo_agent",
+    "message": "Demo task completed successfully",
+    "metadata": {
+      "task_id": "demo_task_001",
+      "agent_id": "demo_agent_1",
+      "success": true,
+      "duration_seconds": 45.2,
+      "message": "Demo task completed successfully"
+    },
+    "context": {},
+    "tags": [],
+    "correlation_id": "demo_task_001",
+    "session_id": "5450f1f1ede4",
+    "user_id": null
+  },
+  {
+    "id": "8533c5ff9ee029c3",
+    "timestamp": "2025-08-26T19:33:05.867506",
+    "event_type": "task_started",
+    "level": "info",
+    "source": "demo_agent",
+    "message": "Starting demo task processing",
+    "metadata": {
+      "task_id": "demo_task_001",
+      "agent_id": "demo_agent_1",
+      "task_type": "data_processing",
+      "message": "Starting demo task processing"
+    },
+    "context": {},
+    "tags": [],
+    "correlation_id": "demo_task_001",
+    "session_id": "5450f1f1ede4",
+    "user_id": null
+  },
+  {
+    "id": "fd65425d11426608",
+    "timestamp": "2025-08-26T19:31:50.598458",
+    "event_type": "task_completed",
+    "level": "info",
+    "source": "demo_agent",
+    "message": "Demo task completed successfully",
+    "metadata": {
+      "task_id": "demo_task_001",
+      "agent_id": "demo_agent_1",
+      "success": true,
+      "duration_seconds": 45.2,
+      "message": "Demo task completed successfully"
+    },
+    "context": {},
+    "tags": [],
+    "correlation_id": "demo_task_001",
+    "session_id": "048e19a6c8e3",
+    "user_id": null
+  },
+  {
+    "id": "58e846b13b9ef1dd",
+    "timestamp": "2025-08-26T19:31:50.573044",
+    "event_type": "task_started",
+    "level": "info",
+    "source": "demo_agent",
+    "message": "Starting demo task processing",
+    "metadata": {
+      "task_id": "demo_task_001",
+      "agent_id": "demo_agent_1",
+      "task_type": "data_processing",
+      "message": "Starting demo task processing"
+    },
+    "context": {},
+    "tags": [],
+    "correlation_id": "demo_task_001",
+    "session_id": "048e19a6c8e3",
+    "user_id": null
+  },
+  {
+    "id": "3e9cdf69c18d3033",
+    "timestamp": "2025-08-26T19:30:16.438433",
+    "event_type": "task_completed",
+    "level": "info",
+    "source": "demo_agent",
+    "message": "Event: task_completed",
+    "metadata": {
+      "task_id": "demo_task_001",
+      "agent_id": "demo_agent_1",
+      "success": true,
+      "duration_seconds": 45.2
+    },
+    "context": {},
+    "tags": [],
+    "correlation_id": "demo_task_001",
+    "session_id": "324b662dfc98",
+    "user_id": null
+  },
+  {
+    "id": "fc910bd9e6b2e891",
+    "timestamp": "2025-08-26T19:30:16.433913",
+    "event_type": "task_started",
+    "level": "info",
+    "source": "demo_agent",
+    "message": "Event: task_started",
+    "metadata": {
+      "task_id": "demo_task_001",
+      "agent_id": "demo_agent_1",
+      "task_type": "data_processing"
+    },
+    "context": {},
+    "tags": [],
+    "correlation_id": "demo_task_001",
+    "session_id": "324b662dfc98",
+    "user_id": null
+  },
+  {
+    "id": "f76f80ff30087d92",
+    "timestamp": "2025-08-26T19:28:36.764942",
+    "event_type": "task_completed",
+    "level": "info",
+    "source": "demo_agent",
+    "message": "Event: task_completed",
+    "metadata": {
+      "task_id": "demo_task_001",
+      "agent_id": "demo_agent_1",
+      "success": true,
+      "duration_seconds": 45.2
+    },
+    "context": {},
+    "tags": [],
+    "correlation_id": "demo_task_001",
+    "session_id": "7acd8bbe6867",
+    "user_id": null
+  },
+  {
+    "id": "a713e0c9c226e157",
+    "timestamp": "2025-08-26T19:28:36.750803",
+    "event_type": "task_started",
+    "level": "info",
+    "source": "demo_agent",
+    "message": "Event: task_started",
+    "metadata": {
+      "task_id": "demo_task_001",
+      "agent_id": "demo_agent_1",
+      "task_type": "data_processing"
+    },
+    "context": {},
+    "tags": [],
+    "correlation_id": "demo_task_001",
+    "session_id": "7acd8bbe6867",
+    "user_id": null
+  },
+  {
+    "id": "86fa5e57ad0dd9be",
+    "timestamp": "2025-08-26T19:27:27.862321",
+    "event_type": "task_completed",
+    "level": "info",
+    "source": "demo_agent",
+    "message": "Event: task_completed",
+    "metadata": {
+      "task_id": "demo_task_001",
+      "agent_id": "demo_agent_1",
+      "success": true,
+      "duration_seconds": 45.2
+    },
+    "context": {},
+    "tags": [],
+    "correlation_id": "demo_task_001",
+    "session_id": "152e7789de54",
+    "user_id": null
+  },
+  {
+    "id": "2185f89a5bedc1c2",
+    "timestamp": "2025-08-26T19:27:27.860909",
+    "event_type": "task_started",
+    "level": "info",
+    "source": "demo_agent",
+    "message": "Event: task_started",
+    "metadata": {
+      "task_id": "demo_task_001",
+      "agent_id": "demo_agent_1",
+      "task_type": "data_processing"
+    },
+    "context": {},
+    "tags": [],
+    "correlation_id": "demo_task_001",
+    "session_id": "152e7789de54",
+    "user_id": null
+  },
+  {
+    "id": "cd6186bb0b4869ea",
+    "timestamp": "2025-08-26T17:43:33.561830",
+    "event_type": "task_completed",
+    "level": "info",
+    "source": "demo_agent",
+    "message": "Event: task_completed",
+    "metadata": {
+      "task_id": "demo_task_001",
+      "agent_id": "demo_agent_1",
+      "success": true,
+      "duration_seconds": 45.2
+    },
+    "context": {},
+    "tags": [],
+    "correlation_id": "demo_task_001",
+    "session_id": "58d4d8693428",
+    "user_id": null
+  },
+  {
+    "id": "4fe17174e9744520",
+    "timestamp": "2025-08-26T17:43:33.559079",
+    "event_type": "task_started",
+    "level": "info",
+    "source": "demo_agent",
+    "message": "Event: task_started",
+    "metadata": {
+      "task_id": "demo_task_001",
+      "agent_id": "demo_agent_1",
+      "task_type": "data_processing"
+    },
+    "context": {},
+    "tags": [],
+    "correlation_id": "demo_task_001",
+    "session_id": "58d4d8693428",
+    "user_id": null
+  },
+  {
+    "id": "89f4a3acd8b9e1a7",
+    "timestamp": "2025-08-24T23:10:23.061249",
+    "event_type": "task_completed",
+    "level": "info",
+    "source": "demo_agent",
+    "message": "Event: task_completed",
+    "metadata": {
+      "task_id": "demo_task_001",
+      "agent_id": "demo_agent_1",
+      "success": true,
+      "duration_seconds": 45.2
+    },
+    "context": {},
+    "tags": [],
+    "correlation_id": "demo_task_001",
+    "session_id": "045d49d3aed3",
+    "user_id": null
+  },
+  {
+    "id": "908c0a621b895595",
+    "timestamp": "2025-08-24T23:10:23.036725",
+    "event_type": "task_started",
+    "level": "info",
+    "source": "demo_agent",
+    "message": "Event: task_started",
+    "metadata": {
+      "task_id": "demo_task_001",
+      "agent_id": "demo_agent_1",
+      "task_type": "data_processing"
+    },
+    "context": {},
+    "tags": [],
+    "correlation_id": "demo_task_001",
+    "session_id": "045d49d3aed3",
+    "user_id": null
+  },
+  {
+    "id": "461047355526a841",
+    "timestamp": "2025-08-24T23:09:42.441529",
+    "event_type": "task_completed",
+    "level": "info",
+    "source": "demo_agent",
+    "message": "Event: task_completed",
+    "metadata": {
+      "task_id": "demo_task_001",
+      "agent_id": "demo_agent_1",
+      "success": true,
+      "duration_seconds": 45.2
+    },
+    "context": {},
+    "tags": [],
+    "correlation_id": "demo_task_001",
+    "session_id": "3a59b911e5fa",
+    "user_id": null
+  },
+  {
+    "id": "fae0688a19a2f1f5",
+    "timestamp": "2025-08-24T23:09:42.440594",
+    "event_type": "task_started",
+    "level": "info",
+    "source": "demo_agent",
+    "message": "Event: task_started",
+    "metadata": {
+      "task_id": "demo_task_001",
+      "agent_id": "demo_agent_1",
+      "task_type": "data_processing"
+    },
+    "context": {},
+    "tags": [],
+    "correlation_id": "demo_task_001",
+    "session_id": "3a59b911e5fa",
+    "user_id": null
+  }
+]

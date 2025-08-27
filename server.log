@@ -1,0 +1,15 @@
+2025-08-26 18:11:08,145 - src.reporting.integrated_system - INFO - Initialized 6 reporting systems
+2025-08-26 18:11:08,146 - src.reporting.integrated_system - INFO - Integrated reporting system initialized
+2025-08-26 18:11:08,146 - src.reporting.integrated_system - INFO - Starting integrated reporting system
+2025-08-26 18:11:08,146 - src.reporting.dashboard_system - INFO - Starting comprehensive dashboard system
+2025-08-26 18:11:08,146 - src.reporting.dashboard_system - INFO - Starting dashboard server on port 5000
+2025-08-26 18:11:08,147 - werkzeug - WARNING - Werkzeug appears to be used in a production deployment. Consider switching to a production web server instead.
+2025-08-26 18:11:08,147 - src.reporting.integrated_system - INFO - Dashboard started on port 5000
+Starting Comprehensive Reporting and Feedback System...
+Dashboard: http://localhost:5000
+Output directory: reporting_output
+Press Ctrl+C to stop
+ * Serving Flask app 'src.reporting.integrated_system'
+ * Debug mode: off
+Address already in use
+Port 5000 is in use by another program. Either identify and stop that program, or start the server with a different port.
