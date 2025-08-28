@@ -8,7 +8,7 @@ import json
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from jinja2 import Template
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -30,7 +30,10 @@ class TaskReport:
     confidence_score: Optional[float]
     error_count: int
     retry_count: int
-    metadata: Dict[str, Any]
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 @dataclass
 class PerformanceMetrics:
@@ -44,6 +47,12 @@ class PerformanceMetrics:
     average_duration: float
     average_confidence: float
     error_rate: float
+    total_input_tokens: int
+    total_output_tokens: int
+    total_tokens_used: int
+    avg_tokens_per_task: float
+    total_cost: float
+    avg_cost_per_task: float
     top_errors: List[Dict[str, Any]]
     agent_performance: Dict[str, Any]
     trend_data: Dict[str, List[float]]
@@ -64,6 +73,15 @@ class ReportTemplate:
 - **Average Duration:** {{ "%.2f"|format(metrics.average_duration) }}s
 - **Average Confidence:** {{ "%.1f%%"|format(metrics.average_confidence * 100) }}
 - **Error Rate:** {{ "%.2f%%"|format(metrics.error_rate * 100) }}
+
+## Token Usage
+
+- **Total Tokens Used:** {{ metrics.total_tokens_used }}
+- **Input Tokens:** {{ metrics.total_input_tokens }}
+- **Output Tokens:** {{ metrics.total_output_tokens }}
+- **Avg. Tokens/Task:** {{ "%.1f"|format(metrics.avg_tokens_per_task) }}
+- **Estimated Total Cost:** ${{ "%.4f"|format(metrics.total_cost) }}
+- **Avg. Cost/Task:** ${{ "%.4f"|format(metrics.avg_cost_per_task) }}
 
 ## Task Breakdown
 
@@ -98,6 +116,10 @@ class ReportTemplate:
 - Success Rate: {{ "%.1f%%"|format(perf.success_rate * 100) }}
 - Avg Duration: {{ "%.2f"|format(perf.avg_duration) }}s
 - Avg Confidence: {{ "%.1f%%"|format(perf.avg_confidence * 100) }}
+- Total Tokens: {{ perf.total_tokens }}
+- Avg Tokens/Task: {{ "%.1f"|format(perf.avg_tokens_per_task) }}
+- **Estimated Cost:** ${{ "%.4f"|format(perf.total_cost) }}
+- **Avg Cost/Task:** ${{ "%.4f"|format(perf.avg_cost_per_task) }}
 
 {% endfor %}
 
@@ -136,8 +158,9 @@ class ReportTemplate:
 class PerformanceAnalyzer:
     """Analyzes performance data and generates insights"""
     
-    def __init__(self):
+    def __init__(self, cost_config: Dict[str, float]):
         self.logger = logging.getLogger(__name__)
+        self.cost_config = cost_config
     
     def analyze_tasks(self, tasks: List[TaskReport], 
                      period_start: str, period_end: str) -> PerformanceMetrics:
@@ -161,6 +184,18 @@ class PerformanceAnalyzer:
         # Error analysis
         error_count = sum(t.error_count for t in tasks)
         error_rate = error_count / total_tasks if total_tasks > 0 else 0
+
+        # Token usage analysis
+        total_input_tokens = sum(t.input_tokens for t in tasks)
+        total_output_tokens = sum(t.output_tokens for t in tasks)
+        total_tokens_used = sum(t.total_tokens for t in tasks)
+        avg_tokens_per_task = total_tokens_used / total_tasks if total_tasks > 0 else 0
+
+        # Cost analysis
+        input_cost = (total_input_tokens / 1000) * self.cost_config['input_cost_per_1k']
+        output_cost = (total_output_tokens / 1000) * self.cost_config['output_cost_per_1k']
+        total_cost = input_cost + output_cost
+        avg_cost_per_task = total_cost / total_tasks if total_tasks > 0 else 0
         
         top_errors = self._analyze_errors(tasks)
         agent_performance = self._analyze_agent_performance(tasks)
@@ -176,6 +211,12 @@ class PerformanceAnalyzer:
             average_duration=avg_duration,
             average_confidence=avg_confidence,
             error_rate=error_rate,
+            total_input_tokens=total_input_tokens,
+            total_output_tokens=total_output_tokens,
+            total_tokens_used=total_tokens_used,
+            avg_tokens_per_task=avg_tokens_per_task,
+            total_cost=total_cost,
+            avg_cost_per_task=avg_cost_per_task,
             top_errors=top_errors,
             agent_performance=agent_performance,
             trend_data=trend_data
@@ -193,6 +234,12 @@ class PerformanceAnalyzer:
             average_duration=0,
             average_confidence=0,
             error_rate=0,
+            total_input_tokens=0,
+            total_output_tokens=0,
+            total_tokens_used=0,
+            avg_tokens_per_task=0,
+            total_cost=0.0,
+            avg_cost_per_task=0.0,
             top_errors=[],
             agent_performance={},
             trend_data={}
@@ -239,7 +286,10 @@ class PerformanceAnalyzer:
                     'failed': 0,
                     'total_duration': 0,
                     'total_confidence': 0,
-                    'confidence_count': 0
+                    'confidence_count': 0,
+                    'total_tokens': 0,
+                    'total_input_tokens': 0,
+                    'total_output_tokens': 0
                 }
             
             stats = agent_stats[agent_id]
@@ -257,15 +307,27 @@ class PerformanceAnalyzer:
             if task.confidence_score is not None:
                 stats['total_confidence'] += task.confidence_score
                 stats['confidence_count'] += 1
-        
+
+            stats['total_tokens'] += task.total_tokens
+            stats['total_input_tokens'] += task.input_tokens
+            stats['total_output_tokens'] += task.output_tokens
+
         # Calculate performance metrics
         performance = {}
         for agent_id, stats in agent_stats.items():
+            input_cost = (stats['total_input_tokens'] / 1000) * self.cost_config['input_cost_per_1k']
+            output_cost = (stats['total_output_tokens'] / 1000) * self.cost_config['output_cost_per_1k']
+            total_cost = input_cost + output_cost
+
             performance[agent_id] = {
                 'task_count': stats['task_count'],
                 'success_rate': stats['completed'] / stats['task_count'] if stats['task_count'] > 0 else 0,
                 'avg_duration': stats['total_duration'] / stats['task_count'] if stats['task_count'] > 0 else 0,
-                'avg_confidence': stats['total_confidence'] / stats['confidence_count'] if stats['confidence_count'] > 0 else 0
+                'avg_confidence': stats['total_confidence'] / stats['confidence_count'] if stats['confidence_count'] > 0 else 0,
+                'total_tokens': stats['total_tokens'],
+                'avg_tokens_per_task': stats['total_tokens'] / stats['task_count'] if stats['task_count'] > 0 else 0,
+                'total_cost': total_cost,
+                'avg_cost_per_task': total_cost / stats['task_count'] if stats['task_count'] > 0 else 0
             }
         
         return performance
@@ -452,7 +514,11 @@ class PeriodicReportGenerator:
     def __init__(self, output_dir: str = "reports"):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
-        self.analyzer = PerformanceAnalyzer()
+        self.token_cost_config = {
+            'input_cost_per_1k': 0.001,
+            'output_cost_per_1k': 0.003
+        }
+        self.analyzer = PerformanceAnalyzer(self.token_cost_config)
         self.trend_analyzer = TrendAnalyzer()
         self.recommendation_engine = RecommendationEngine()
         
@@ -577,6 +643,10 @@ def create_demo_tasks() -> List[TaskReport]:
         
         duration = (end_time - start_time).total_seconds() if end_time else None
         
+        input_tokens = 150 + i * 5
+        output_tokens = 300 + i * 10
+        total_tokens = input_tokens + output_tokens
+
         task = TaskReport(
             task_id=f"task_{i:03d}",
             task_name=f"Process Data Batch {i}",
@@ -588,6 +658,9 @@ def create_demo_tasks() -> List[TaskReport]:
             confidence_score=confidence,
             error_count=error_count,
             retry_count=error_count,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
             metadata={
                 'batch_size': 100 + (i % 50),
                 'errors': [

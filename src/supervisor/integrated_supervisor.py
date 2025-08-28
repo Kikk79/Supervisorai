@@ -248,7 +248,7 @@ class IntegratedSupervisor:
             self.instruction_monitor = InstructionAdherenceMonitor()
             self.quality_monitor = OutputQualityMonitor()
             self.error_tracker = ErrorTracker()
-            self.resource_monitor = ResourceUsageMonitor()
+            self.resource_monitor = ResourceUsageMonitor(event_router=self.reporting_system.event_router if self.reporting_system else None)
             self.confidence_scorer = ConfidenceScorer()
         
         # Error handling system

@@ -1,5 +1,6 @@
 """Resource Usage Monitoring - Tracks token usage, loops, and performance"""
 
+import logging
 import time
 import psutil
 import threading
@@ -23,8 +24,10 @@ class ResourceSnapshot:
 class ResourceUsageMonitor:
     """Monitors resource usage including tokens, performance, and loop detection"""
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None, event_router=None):
         self.config = config or self._default_config()
+        self.logger = logging.getLogger(__name__)
+        self.event_router = event_router
         self.session_start_time = None
         self.resource_history = deque(maxlen=self.config['history_size'])
         self.token_usage = {
@@ -185,6 +188,9 @@ class ResourceUsageMonitor:
         input_tokens = token_data.get('input_tokens', 0)
         output_tokens = token_data.get('output_tokens', 0)
         total_tokens = token_data.get('total_tokens', input_tokens + output_tokens)
+
+        if not total_tokens and not token_data.get('api_call'):
+            return
         
         self.token_usage['input_tokens'] += input_tokens
         self.token_usage['output_tokens'] += output_tokens
@@ -192,6 +198,12 @@ class ResourceUsageMonitor:
         
         if token_data.get('api_call', False):
             self.token_usage['api_calls'] += 1
+
+        self.logger.info(
+            f"Token usage updated: "
+            f"Input: {input_tokens}, Output: {output_tokens}, Total: {total_tokens}. "
+            f"Session Total: {self.token_usage['total_tokens']}"
+        )
     
     def _get_system_metrics(self) -> Dict[str, Any]:
         """Get current system resource metrics"""
