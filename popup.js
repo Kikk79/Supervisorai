@@ -32,6 +32,8 @@ class HybridSupervisorPopup {
     chrome.runtime.onMessage.addListener((message) => {
       if (message.action === 'STATUS_UPDATE') {
         this.handleStatusUpdate(message.data);
+      } else if (message.action === 'METRICS_UPDATE') {
+        this.handleMetricsUpdate(message.data);
       }
     });
   }
@@ -201,6 +203,19 @@ class HybridSupervisorPopup {
     this.updateConnectionStatus();
     this.updateSyncStatus();
     this.updateAuthStatus(data.authStatus);
+  }
+
+  handleMetricsUpdate(data) {
+    document.getElementById('tasksSupervised').textContent = data.statistics.tasks_supervised || 0;
+    document.getElementById('errorsHandled').textContent = data.statistics.errors_handled || 0;
+    document.getElementById('reportsGenerated').textContent = data.statistics.reports_generated || 0;
+    document.getElementById('uptime').textContent = data.system_info.uptime || '0s';
+
+    const tokenUsage = data.statistics.token_usage || {};
+    document.getElementById('totalTokens').textContent = tokenUsage.total_tokens || 0;
+
+    const estimatedCost = data.statistics.estimated_cost || 0;
+    document.getElementById('estimatedCost').textContent = `$${estimatedCost.toFixed(4)}`;
   }
 
   updateStatusDisplay(status) {

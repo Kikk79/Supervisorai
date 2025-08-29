@@ -249,8 +249,20 @@ class HybridSupervisorService {
       };
       
       websocket.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          // Assuming the event from Flask-SocketIO is a 'log_event'
+          // and the actual event data is in the first argument.
+          if (message.name === 'log_event' && message.args && message.args.length > 0) {
+            this.handleLogEvent(message.args[0]);
+          } else {
+            // Handle other types of messages if necessary
+            console.log('[Hybrid Supervisor] Received non-log_event message:', message);
+          }
+        } catch (error) {
+          console.error('[Hybrid Supervisor] Error parsing WebSocket message:', error);
+        }
         connection.lastActivity = Date.now();
-        this.handleMessage(connectionId, event.data, endpointType);
       };
       
       websocket.onerror = (error) => {
@@ -283,224 +295,6 @@ class HybridSupervisorService {
     }
     
     return url.toString();
-  }y: Date.now(),
-        messageCount: 0,
-        reconnectAttempts: 0
-      };
-      
-      // Set up WebSocket event handlers
-      await this.setupWebSocketHandlers(connection);
-      
-      this.activeConnections.set(connectionId, connection);
-      this.connectionAttempts.set(endpointType, 0);
-      
-      return connection;
-      
-    } catch (error) {
-      console.error(`[Hybrid Supervisor] Failed to connect to ${endpointType}:`, error);
-      this.handleConnectionFailure(endpointType, error);
-      throw error;
-    }
-  }
-
-  buildWebSocketUrl(baseUrl) {
-    const url = new URL(baseUrl);
-    
-    // Add authentication parameters if available
-    if (this.authState.userId) {
-      url.searchParams.set('user_id', this.authState.userId);
-    }
-    
-    if (this.authState.sessionToken) {
-      url.searchParams.set('session_token', this.authState.sessionToken);
-    }
-    
-    // Add extension metadata
-    url.searchParams.set('extension_id', chrome.runtime.id);
-    url.searchParams.set('extension_version', chrome.runtime.getManifest().version);
-    url.searchParams.set('timestamp', Date.now().toString());
-    
-    return url.toString();
-  }
-
-  async setupWebSocketHandlers(connection) {
-    return new Promise((resolve, reject) => {
-      const ws = connection.websocket;
-      
-      ws.onopen = () => {
-        console.log(`[Hybrid Supervisor] Connected to ${connection.type} endpoint`);
-        connection.isConnected = true;
-        connection.lastActivity = Date.now();
-        
-        // Send registration message
-        this.sendRegistrationMessage(connection);
-        
-        // Process queued messages for this connection type
-        this.processQueuedMessages(connection.type);
-        
-        resolve(connection);
-      };
-
-      ws.onmessage = (event) => {
-        this.handleWebSocketMessage(event, connection);
-        connection.lastActivity = Date.now();
-        connection.messageCount++;
-      };
-
-      ws.onclose = (event) => {
-        console.log(`[Hybrid Supervisor] ${connection.type} connection closed:`, event.code, event.reason);
-        connection.isConnected = false;
-        this.handleConnectionClose(connection, event);
-      };
-
-      ws.onerror = (error) => {
-        console.error(`[Hybrid Supervisor] ${connection.type} WebSocket error:`, error);
-        connection.isConnected = false;
-        reject(error);
-      };
-      
-      // Set timeout for connection
-      setTimeout(() => {
-        if (!connection.isConnected) {
-          reject(new Error('Connection timeout'));
-        }
-      }, 10000);
-    });
-  }
-
-  async sendRegistrationMessage(connection) {
-    const registrationData = {
-      type: 'EXTENSION_REGISTER',
-      id: this.generateMessageId(),
-      data: {
-        extensionId: chrome.runtime.id,
-        version: chrome.runtime.getManifest().version,
-        userId: this.authState.userId,
-        capabilities: [
-          'real-time-monitoring',
-          'task-coherence-protection', 
-          'intervention',
-          'offline-sync',
-          'multi-session'
-        ],
-        deployment: connection.type,
-        timestamp: Date.now()
-      }
-    };
-    
-    await this.sendMessage(connection, registrationData);
-  }
-
-  async handleWebSocketMessage(event, connection) {
-    try {
-      const message = JSON.parse(event.data);
-      
-      console.log(`[Hybrid Supervisor] Message from ${connection.type}:`, message.type);
-      
-      switch (message.type) {
-        case 'connection_established':
-          await this.handleConnectionEstablished(message, connection);
-          break;
-          
-        case 'intervention_required':
-          await this.handleInterventionRequired(message);
-          break;
-          
-        case 'sync_request':
-          await this.handleSyncRequest(message, connection);
-          break;
-          
-        case 'auth_token_refresh':
-          await this.handleAuthTokenRefresh(message);
-          break;
-          
-        case 'configuration_update':
-          await this.handleConfigurationUpdate(message);
-          break;
-          
-        case 'pong':
-          this.handlePong(connection);
-          break;
-          
-        default:
-          console.log(`[Hybrid Supervisor] Unknown message type: ${message.type}`);
-      }
-      
-    } catch (error) {
-      console.error('[Hybrid Supervisor] Error processing WebSocket message:', error);
-    }
-  }
-
-  async handleConnectionEstablished(message, connection) {
-    const { session_id, server_info, capabilities } = message.data;
-    
-    connection.sessionId = session_id;
-    connection.serverCapabilities = capabilities;
-    
-    console.log(`[Hybrid Supervisor] ${connection.type} connection established:`, {
-      sessionId: session_id,
-      capabilities: capabilities
-    });
-    
-    // Update UI
-    this.broadcastStatusUpdate();
-    
-    // Sync offline data if available
-    if (this.offlineData.size > 0) {
-      await this.syncOfflineData(connection);
-    }
-  }
-
-  async handleInterventionRequired(message) {
-    const { task_id, intervention_type, reason, suggested_action, severity } = message.data;
-    
-    console.log('[Hybrid Supervisor] Intervention required:', {
-      taskId: task_id,
-      type: intervention_type,
-      severity: severity
-    });
-    
-    // Find the relevant tab
-    const tabId = await this.findTabByTaskId(task_id);
-    if (tabId) {
-      // Send intervention to content script
-      await chrome.tabs.sendMessage(tabId, {
-        action: 'INTERVENE',
-        data: {
-          type: intervention_type,
-          reason: reason,
-          suggestedAction: suggested_action,
-          severity: severity
-        }
-      });
-      
-      // Log intervention
-      await this.logIntervention({
-        tabId,
-        taskId: task_id,
-        type: intervention_type,
-        reason,
-        timestamp: Date.now()
-      });
-    }
-  }
-
-  async handleSyncRequest(message, connection) {
-    const { sync_type, last_sync_timestamp } = message.data;
-    
-    console.log(`[Hybrid Supervisor] Sync request from ${connection.type}:`, sync_type);
-    
-    switch (sync_type) {
-      case 'activity_data':
-        await this.syncActivityData(connection, last_sync_timestamp);
-        break;
-      case 'task_contexts':
-        await this.syncTaskContexts(connection);
-        break;
-      case 'configuration':
-        await this.syncConfiguration(connection);
-        break;
-    }
   }
 
   async handleContentScriptMessage(request, sender, sendResponse) {
@@ -985,6 +779,27 @@ class HybridSupervisorService {
     
     this.activeConnections.forEach((conn, id) => {
       console.log(`  ${conn.type}: ${conn.isConnected ? '✓' : '✗'} (${conn.url})`);
+    });
+  }
+
+  handleLogEvent(event) {
+    console.log('[Hybrid Supervisor] Received log event:', event.event_type);
+
+    switch (event.event_type) {
+      case 'system_metrics_update':
+        this.handleMetricsUpdate(event.data);
+        break;
+      // Other cases for other event types
+    }
+  }
+
+  handleMetricsUpdate(data) {
+    // Forward metrics to popup
+    chrome.runtime.sendMessage({
+      action: 'METRICS_UPDATE',
+      data: data
+    }).catch(() => {
+      // Ignore errors if popup is not open
     });
   }
 

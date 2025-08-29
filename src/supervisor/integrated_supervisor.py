@@ -222,6 +222,7 @@ class IntegratedSupervisor:
             "errors_handled": 0,
             "reports_generated": 0
         }
+        self.metrics_emitter_thread = None
         
         self.logger.info("Integrated Supervisor System initialized successfully")
     
@@ -261,6 +262,26 @@ class IntegratedSupervisor:
         
         # Reporting system is now passed in
     
+    def _metrics_emitter_loop(self):
+        """Periodically emits system metrics."""
+        while self.is_running:
+            try:
+                # Since this is running in a separate thread, we need to run the async func
+                status = asyncio.run(self.get_system_status())
+
+                if self.reporting_system:
+                    metrics_event = SystemIntegrationEvent(
+                        event_id=f"metrics_{datetime.utcnow().timestamp()}",
+                        timestamp=datetime.utcnow().isoformat(),
+                        event_type="system_metrics_update",
+                        source_system="integrated_supervisor",
+                        data=status
+                    )
+                    self.reporting_system.event_router.route_event(metrics_event)
+            except Exception as e:
+                self.logger.error(f"Error in metrics emitter loop: {e}")
+
+            time.sleep(5) # Emit metrics every 5 seconds
     
     async def start(self):
         """Start the integrated supervisor system"""
@@ -274,6 +295,15 @@ class IntegratedSupervisor:
             self.reporting_system.start()
         
         self.is_running = True
+
+        # Start metrics emitter
+        if self.config.reporting_enabled:
+            self.metrics_emitter_thread = threading.Thread(
+                target=self._metrics_emitter_loop,
+                daemon=True
+            )
+            self.metrics_emitter_thread.start()
+
         self.logger.info("Integrated Supervisor System started successfully")
     
     async def stop(self):
@@ -436,6 +466,25 @@ class IntegratedSupervisor:
         # Add detailed subsystem status
         if hasattr(self, 'error_handling_system'):
             status["error_handling_stats"] = self.error_handling_system.system_stats
+
+        if hasattr(self, 'resource_monitor'):
+            usage_summary = self.resource_monitor.get_usage_summary()
+            status['statistics']['token_usage'] = usage_summary.get('token_usage', {})
+
+            # Calculate cost
+            token_usage = usage_summary.get('token_usage', {})
+            input_tokens = token_usage.get('input_tokens', 0)
+            output_tokens = token_usage.get('output_tokens', 0)
+
+            # TODO: Centralize cost configuration
+            input_cost_per_1k = 0.001
+            output_cost_per_1k = 0.003
+
+            input_cost = (input_tokens / 1000) * input_cost_per_1k
+            output_cost = (output_tokens / 1000) * output_cost_per_1k
+            total_cost = input_cost + output_cost
+
+            status['statistics']['estimated_cost'] = total_cost
         
         return status
     
