@@ -34,19 +34,19 @@ from .confidence_scorer import ConfidenceScorer
 from .error_handling_system import SupervisorErrorHandlingSystem
 from .error_types import SupervisorError, ErrorType
 
-from ..reporting.integrated_system import (
+from reporting.integrated_system import (
     IntegratedReportingSystem,
     IntegratedReportingConfig,
     SystemIntegrationEvent,
     EventRouter,
     BackgroundProcessor
 )
-from ..reporting.alert_system import RealTimeAlertSystem as ComprehensiveAlertSystem
-from ..reporting.report_generator import PeriodicReportGenerator
-from ..reporting.audit_system import ComprehensiveAuditSystem, AuditEventType, AuditLevel
-from ..reporting.confidence_system import ConfidenceReportingSystem
-from ..reporting.pattern_system import ComprehensivePatternSystem
-from ..reporting.dashboard_system import ComprehensiveDashboardSystem
+from reporting.alert_system import RealTimeAlertSystem as ComprehensiveAlertSystem
+from reporting.report_generator import PeriodicReportGenerator
+from reporting.audit_system import ComprehensiveAuditSystem, AuditEventType, AuditLevel
+from reporting.confidence_system import ConfidenceReportingSystem
+from reporting.pattern_system import ComprehensivePatternSystem
+from reporting.dashboard_system import ComprehensiveDashboardSystem
 
 from .core import SupervisorCore
 
@@ -254,10 +254,12 @@ class IntegratedSupervisor:
         
         # Error handling system
         if self.config.error_handling_enabled:
+            alert_system = self.reporting_system.systems.get('alert_system') if self.reporting_system else None
             self.error_handling_system = SupervisorErrorHandlingSystem(
                 storage_path=self.data_dir / "error_handling",
                 max_retries=self.config.max_retries,
-                escalation_enabled=self.config.escalation_enabled
+                escalation_enabled=self.config.escalation_enabled,
+                alert_system=alert_system
             )
         
         # Reporting system is now passed in
@@ -353,7 +355,8 @@ class IntegratedSupervisor:
                         error=e,
                         agent_id=f"{framework}_agent",
                         task_id=task_id,
-                        context=context
+                        context=context,
+                        recovery_callback=task_callable
                     )
                     
                     self.system_stats["errors_handled"] += 1
@@ -405,6 +408,51 @@ class IntegratedSupervisor:
 
             # Validate output if monitoring enabled
             if self.config.monitoring_enabled and result:
+                # --- Tiered Response System: Warning Tier ---
+
+                # 1. Check for instruction drift
+                if hasattr(self, 'instruction_monitor'):
+                    adherence_result = self.instruction_monitor.evaluate_adherence(
+                        instructions=context.get("instructions", []),
+                        agent_steps=[str(result)], # Assuming result is a single step
+                        constraints=context.get("constraints", {})
+                    )
+                    if adherence_result['score'] < 0.8:
+                        warning_error = SupervisorError(
+                            message=f"Instruction adherence score is low: {adherence_result['score']:.2f}",
+                            error_type=ErrorType.INSTRUCTION_DRIFT_WARNING,
+                            context={**context, 'adherence_result': adherence_result}
+                        )
+                        await self.error_handling_system.handle_error(
+                            error=warning_error,
+                            agent_id=f"{framework}_agent",
+                            task_id=task_id,
+                            context=context,
+                            recovery_callback=task_callable
+                        )
+
+                # 2. Check for quality degradation
+                if hasattr(self, 'quality_monitor'):
+                    quality_result = self.quality_monitor.evaluate_output_quality(
+                        outputs=[str(result)],
+                        expected_format=context.get("expected_format", {})
+                    )
+                    if quality_result['score'] < 0.7:
+                        warning_error = SupervisorError(
+                            message=f"Output quality score is low: {quality_result['score']:.2f}",
+                            error_type=ErrorType.QUALITY_DEGRADATION_WARNING,
+                            context={**context, 'quality_result': quality_result}
+                        )
+                        await self.error_handling_system.handle_error(
+                            error=warning_error,
+                            agent_id=f"{framework}_agent",
+                            task_id=task_id,
+                            context=context,
+                            recovery_callback=task_callable
+                        )
+
+                # Note: The original quality/confidence score logic is now replaced by the above checks.
+                # The following is left here for reference but should be removed in a future refactoring.
                 quality_score = await self.quality_monitor.analyze_output(
                     output=str(result),
                     expected_format="json" if isinstance(result, dict) else "text",

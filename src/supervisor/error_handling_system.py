@@ -20,6 +20,8 @@ from .history_manager import HistoryManager, HistoryEventType
 from .recovery_orchestrator import RecoveryOrchestrator, RecoveryResult
 
 
+from ..reporting.alert_system import RealTimeAlertSystem
+
 class SupervisorErrorHandlingSystem:
     """
     Comprehensive error handling system for the Supervisor Agent.
@@ -38,7 +40,8 @@ class SupervisorErrorHandlingSystem:
         storage_path: Optional[Path] = None,
         max_retries: int = 3,
         max_snapshots: int = 50,
-        escalation_enabled: bool = True
+        escalation_enabled: bool = True,
+        alert_system: Optional[RealTimeAlertSystem] = None
     ):
         """
         Initialize the comprehensive error handling system.
@@ -48,6 +51,7 @@ class SupervisorErrorHandlingSystem:
             max_retries: Maximum retry attempts
             max_snapshots: Maximum state snapshots to keep
             escalation_enabled: Whether to enable human escalation
+            alert_system: The alert system to use for notifications
         """
         
         self.storage_path = storage_path or Path("supervisor_data/error_handling")
@@ -63,7 +67,8 @@ class SupervisorErrorHandlingSystem:
             max_snapshots=max_snapshots
         )
         self.escalation_handler = EscalationHandler(
-            storage_path=self.storage_path / "escalations"
+            storage_path=self.storage_path / "escalations",
+            alert_system=alert_system
         ) if escalation_enabled else None
         
         self.loop_detector = LoopDetector()

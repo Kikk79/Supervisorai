@@ -31,6 +31,7 @@ class RecoveryResult(Enum):
 
 class RecoveryStrategy(Enum):
     """Available recovery strategies."""
+    RETRY_WITH_HINT = "retry_with_hint"
     RETRY_WITH_ADJUSTMENT = "retry_with_adjustment"
     ROLLBACK_AND_RETRY = "rollback_and_retry"
     ESCALATE_TO_HUMAN = "escalate_to_human"
@@ -199,7 +200,20 @@ class RecoveryOrchestrator:
         estimated_success_rate = 0.5  # Default estimate
         
         # Determine strategies based on error type and severity
-        if error.error_type == ErrorType.TIMEOUT:
+        if error.error_type in [
+            ErrorType.LOW_CONFIDENCE_WARNING,
+            ErrorType.INSTRUCTION_DRIFT_WARNING,
+            ErrorType.QUALITY_DEGRADATION_WARNING,
+            ErrorType.RESOURCE_USAGE_WARNING,
+        ]:
+            strategies = [
+                RecoveryStrategy.RETRY_WITH_HINT,
+                RecoveryStrategy.ESCALATE_TO_HUMAN
+            ]
+            priority = 20
+            estimated_success_rate = 0.6
+
+        elif error.error_type == ErrorType.TIMEOUT:
             strategies = [
                 RecoveryStrategy.RETRY_WITH_ADJUSTMENT,
                 RecoveryStrategy.ESCALATE_TO_HUMAN
@@ -344,6 +358,9 @@ class RecoveryOrchestrator:
         elif strategy == RecoveryStrategy.EMERGENCY_STOP:
             return await self._emergency_stop(error, context, agent_id)
         
+        elif strategy == RecoveryStrategy.RETRY_WITH_HINT:
+            return await self._retry_with_hint(error, context, recovery_callback)
+
         elif strategy == RecoveryStrategy.ADAPTIVE_RECOVERY:
             return await self._adaptive_recovery(error, context, recovery_callback)
         
@@ -351,6 +368,34 @@ class RecoveryOrchestrator:
             self.logger.error(f"Unknown recovery strategy: {strategy.value}")
             return RecoveryResult.FAILURE
     
+    async def _retry_with_hint(
+        self,
+        error: SupervisorError,
+        context: Dict[str, Any],
+        recovery_callback: Optional[Callable]
+    ) -> RecoveryResult:
+        """Execute retry with a hint provided to the agent."""
+
+        if not await self.retry_system.should_retry(error):
+            return RecoveryResult.REQUIRES_ESCALATION
+
+        if not recovery_callback:
+            self.logger.warning("No recovery callback provided for retry with hint")
+            return RecoveryResult.FAILURE
+
+        self.logger.info(f"Supervisor hint: {error.message}. Retrying task.")
+
+        retry_result = await self.retry_system.execute_retry(
+            error=error,
+            retry_callback=recovery_callback
+        )
+
+        if retry_result.get('success', False):
+            return RecoveryResult.SUCCESS
+        else:
+            error.retry_count += 1
+            return RecoveryResult.FAILURE
+
     async def _retry_with_adjustment(
         self,
         error: SupervisorError,

@@ -64,12 +64,15 @@ class EscalationTicket:
         return data
 
 
+from reporting.alert_system import RealTimeAlertSystem
+
 class EscalationHandler:
     """System for managing error escalations and human interventions."""
     
-    def __init__(self, storage_path: Optional[Path] = None):
+    def __init__(self, storage_path: Optional[Path] = None, alert_system: Optional[RealTimeAlertSystem] = None):
         self.storage_path = storage_path or Path("supervisor_data/escalations")
         self.storage_path.mkdir(parents=True, exist_ok=True)
+        self.alert_system = alert_system
         
         self.logger = logging.getLogger(__name__)
         
@@ -186,6 +189,16 @@ class EscalationHandler:
             f"with ticket {ticket_id}"
         )
         
+        # Send alert if alert system is available
+        if self.alert_system:
+            self.alert_system.send_alert(
+                severity=level.value,
+                title=f"Error Escalated: {error.error_type.value}",
+                message=f"Error escalated to level {level.value}. Ticket ID: {ticket_id}. Message: {error.message}",
+                source="EscalationHandler",
+                metadata=ticket.to_dict()
+            )
+
         return ticket_id
     
     def resolve_ticket(

@@ -39,9 +39,9 @@ logger = logging.getLogger(__name__)
 try:
     from fastmcp import FastMCP
     # Import integrated components
-    from integrated_supervisor import IntegratedSupervisor, SupervisorConfig
-    from supervisor_agent.core import SupervisorCore
-    from supervisor_agent import (
+    from supervisor.integrated_supervisor import IntegratedSupervisor, SupervisorConfig
+    from supervisor.core import SupervisorCore
+    from supervisor.types import (
         MonitoringRules, EscalationConfig, TaskStatus, 
         InterventionLevel, KnowledgeBaseEntry
     )
@@ -50,7 +50,7 @@ try:
 except ImportError as e:
     logger.error(f"Failed to import integrated modules: {e}")
     from fastmcp import FastMCP
-    from supervisor_agent.core import SupervisorCore
+    from supervisor.core import SupervisorCore
     INTEGRATED_MODE = False
     logger.info("Running in basic supervisor mode")
 

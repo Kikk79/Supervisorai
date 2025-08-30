@@ -25,6 +25,10 @@ class ErrorType(Enum):
     AGENT_OVERLOAD = "agent_overload"
     TASK_COMPLEXITY = "task_complexity"
     CONTEXT_OVERFLOW = "context_overflow"
+    LOW_CONFIDENCE_WARNING = "low_confidence_warning"
+    INSTRUCTION_DRIFT_WARNING = "instruction_drift_warning"
+    QUALITY_DEGRADATION_WARNING = "quality_degradation_warning"
+    RESOURCE_USAGE_WARNING = "resource_usage_warning"
     
     # Loop and control flow errors
     INFINITE_LOOP = "infinite_loop"
@@ -133,6 +137,10 @@ class ErrorClassifier:
         ErrorType.AGENT_OVERLOAD: ErrorSeverity.HIGH,
         ErrorType.TASK_COMPLEXITY: ErrorSeverity.MEDIUM,
         ErrorType.CONTEXT_OVERFLOW: ErrorSeverity.HIGH,
+        ErrorType.LOW_CONFIDENCE_WARNING: ErrorSeverity.LOW,
+        ErrorType.INSTRUCTION_DRIFT_WARNING: ErrorSeverity.LOW,
+        ErrorType.QUALITY_DEGRADATION_WARNING: ErrorSeverity.LOW,
+        ErrorType.RESOURCE_USAGE_WARNING: ErrorSeverity.LOW,
         ErrorType.INFINITE_LOOP: ErrorSeverity.CRITICAL,
         ErrorType.STUCK_STATE: ErrorSeverity.HIGH,
         ErrorType.CIRCULAR_DEPENDENCY: ErrorSeverity.HIGH,
@@ -155,6 +163,10 @@ class ErrorClassifier:
         ErrorType.TASK_COMPLEXITY,
         ErrorType.CONTEXT_OVERFLOW,
         ErrorType.STUCK_STATE,
+        ErrorType.LOW_CONFIDENCE_WARNING,
+        ErrorType.INSTRUCTION_DRIFT_WARNING,
+        ErrorType.QUALITY_DEGRADATION_WARNING,
+        ErrorType.RESOURCE_USAGE_WARNING,
     }
     
     @classmethod
