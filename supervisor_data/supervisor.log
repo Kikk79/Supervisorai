@@ -1,0 +1,7 @@
+2025-08-30 04:38:46,766 - supervisor.integrated_supervisor - INFO - Initializing Integrated Supervisor System
+2025-08-30 04:42:05,326 - supervisor.integrated_supervisor - INFO - Initializing Integrated Supervisor System
+2025-08-30 04:42:05,331 - supervisor.error_handling_system - INFO - Initializing Supervisor Error Handling System
+2025-08-30 04:42:05,334 - supervisor.error_handling_system - INFO - Error handling system initialization complete
+2025-08-30 04:42:05,334 - supervisor.integrated_supervisor - INFO - Integrated Supervisor System initialized successfully
+2025-08-30 04:42:05,335 - asyncio - WARNING - Executing <Task finished name='Task-2' coro=<TestImport.test_import_integrated_supervisor() done, defined at /app/test_import.py:9> result=None created at /home/jules/.pyenv/versions/3.12.11/lib/python3.12/asyncio/runners.py:100> took 3.913 seconds
+2025-08-30 04:42:05,335 - supervisor.rollback_manager - INFO - Loaded 0 existing snapshots

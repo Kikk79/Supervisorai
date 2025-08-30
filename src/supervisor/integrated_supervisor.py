@@ -337,11 +337,13 @@ class IntegratedSupervisor:
         try:
             # Start monitoring
             if self.config.monitoring_enabled:
-                await self.monitoring_engine.start_task_monitoring(
-                    task_id=task_id,
-                    task_type=f"{framework}_task",
-                    metadata=context or {}
-                )
+                session_data = {
+                    "session_id": task_id,
+                    "task_id": task_id,
+                    "framework": framework,
+                    "context": context or {}
+                }
+                self.monitoring_engine.start_monitoring(session_data)
             
             # Execute task with error handling
             if self.config.error_handling_enabled:
@@ -453,18 +455,18 @@ class IntegratedSupervisor:
 
                 # Note: The original quality/confidence score logic is now replaced by the above checks.
                 # The following is left here for reference but should be removed in a future refactoring.
-                quality_score = await self.quality_monitor.analyze_output(
-                    output=str(result),
-                    expected_format="json" if isinstance(result, dict) else "text",
-                    task_instructions=context.get("instructions", []) if context else []
-                )
+                # quality_score = await self.quality_monitor.analyze_output(
+                #     output=str(result),
+                #     expected_format="json" if isinstance(result, dict) else "text",
+                #     task_instructions=context.get("instructions", []) if context else []
+                # )
                 
-                confidence_score = self.confidence_scorer.calculate_confidence(
-                    task_type=f"{framework}_task",
-                    output_quality=quality_score,
-                    error_count=0,  # Would be tracked properly in real implementation
-                    completion_time=time.time() - start_time
-                )
+                # confidence_score = self.confidence_scorer.calculate_confidence(
+                #     task_type=f"{framework}_task",
+                #     output_quality=quality_score,
+                #     error_count=0,  # Would be tracked properly in real implementation
+                #     completion_time=time.time() - start_time
+                # )
             
             # Route success event
             if self.reporting_system:

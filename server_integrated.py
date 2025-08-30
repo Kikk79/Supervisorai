@@ -67,6 +67,8 @@ async def get_supervisor_instance():
     
     if INTEGRATED_MODE:
         if integrated_supervisor is None:
+            from reporting.integrated_system import IntegratedReportingSystem
+            reporting_system = IntegratedReportingSystem()
             config = SupervisorConfig(
                 data_dir=os.getenv("SUPERVISOR_DATA_DIR", "supervisor_data"),
                 log_level=os.getenv("LOG_LEVEL", "INFO"),
@@ -76,7 +78,7 @@ async def get_supervisor_instance():
                 reporting_enabled=True,
                 framework_hooks_enabled=True
             )
-            integrated_supervisor = IntegratedSupervisor(config)
+            integrated_supervisor = IntegratedSupervisor(config=config, reporting_system=reporting_system)
             await integrated_supervisor.start()
             logger.info("Integrated Supervisor initialized")
         return integrated_supervisor

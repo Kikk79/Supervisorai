@@ -20,7 +20,7 @@ from .history_manager import HistoryManager, HistoryEventType
 from .recovery_orchestrator import RecoveryOrchestrator, RecoveryResult
 
 
-from ..reporting.alert_system import RealTimeAlertSystem
+from reporting.alert_system import RealTimeAlertSystem
 
 class SupervisorErrorHandlingSystem:
     """
