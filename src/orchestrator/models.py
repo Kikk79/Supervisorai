@@ -28,6 +28,8 @@ class ManagedAgent:
     status: AgentStatus = AgentStatus.IDLE
     current_task_id: str | None = None
     last_seen: float = field(default_factory=time.time)
+    cpu_load_percent: float = 0.0
+    memory_load_percent: float = 0.0
 
 @dataclass
 class OrchestrationTask:

@@ -26,6 +26,7 @@ from .expectimax_agent import ExpectimaxAgent, AgentState, Action
 from .llm_judge import LLMJudge
 from task_coherence.coherence_analyzer import CoherenceAnalyzer
 from researcher.assistor import ResearchAssistor
+from analysis.code_analyzer import CodeQualityAnalyzer
 
 
 class SupervisorCore:
@@ -42,6 +43,7 @@ class SupervisorCore:
         self.coherence_analyzer = CoherenceAnalyzer()
         self.llm_judge = LLMJudge()
         self.research_assistor = ResearchAssistor()
+        self.code_analyzer = CodeQualityAnalyzer()
         self.audit_logger = AuditLogger(str(self.data_dir / "audit.jsonl")) # Legacy logger
         self.audit_system = audit_system # New, more comprehensive audit system
 
@@ -168,9 +170,14 @@ class SupervisorCore:
             original_goals=task.instructions
         )
         
+        # If the output is code, perform static analysis
+        code_analysis_result = None
+        if output_type == "python_code":
+            code_analysis_result = self.code_analyzer.analyze_code(output)
+
         # Check for intervention requirements
         intervention_result = await self._check_intervention_needed(
-            task, output, quality_metrics, coherence_analysis
+            task, output, quality_metrics, coherence_analysis, code_analysis_result
         )
         
         # Store output and intervention result, including the LLM judge's reasoning
@@ -180,6 +187,7 @@ class SupervisorCore:
             "output_type": output_type,
             "quality_metrics": quality_metrics.__dict__,
             "llm_judge_evaluation": llm_evaluation,
+            "code_analysis": code_analysis_result,
             "intervention_result": intervention_result,
             "metadata": metadata or {}
         }
@@ -231,16 +239,22 @@ class SupervisorCore:
         task: AgentTask,
         output: str,
         quality_metrics: QualityMetrics,
-        coherence_analysis: Dict
+        coherence_analysis: Dict,
+        code_analysis_result: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """Determine if intervention is needed using the Expectimax agent."""
         
         max_tokens = getattr(self.monitoring_rules, 'max_token_threshold', 10000)
         if max_tokens == 0: max_tokens = 10000
 
+        # Combine historical errors with errors from the current code analysis
+        total_error_count = len([i for i in task.interventions if i["level"] == "ESCALATION"])
+        if code_analysis_result:
+            total_error_count += code_analysis_result.get("error_count", 0)
+
         current_state = AgentState(
             quality_score=quality_metrics.confidence_score,
-            error_count=len([i for i in task.interventions if i["level"] == "ESCALATION"]),
+            error_count=total_error_count,
             resource_usage=task.resource_usage.token_count / max_tokens,
             task_progress=len(task.outputs) / 10.0,
             drift_score=coherence_analysis["drift_score"]

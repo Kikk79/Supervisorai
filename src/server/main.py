@@ -326,6 +326,17 @@ async def monitor_agent_comprehensive(
         return json.dumps({"success": False, "error": str(e)})
 
 @mcp.tool
+async def report_agent_resources(agent_id: str, cpu_load: float, memory_load: float) -> str:
+    """Allows an agent to report its current resource utilization."""
+    try:
+        orch = get_orchestrator_instance()
+        orch.update_agent_resources(agent_id, cpu_load, memory_load)
+        return json.dumps({"success": True, "message": f"Resource update for {agent_id} received."})
+    except Exception as e:
+        logger.error(f"Failed to report resources for agent {agent_id}: {e}")
+        return json.dumps({"success": False, "error": str(e)})
+
+@mcp.tool
 async def handle_error_with_recovery(
     task_id: str,
     error_description: str,

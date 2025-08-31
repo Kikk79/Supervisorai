@@ -120,6 +120,28 @@ class TestOrchestrator(unittest.TestCase):
         self.assertIn("Write Unit Tests", task_names)
         self.assertIn("Generate Report", task_names)
 
+    def test_find_available_agent_with_resource_awareness(self):
+        """Test that the orchestrator selects the agent with the lowest resource load."""
+        # Register three agents with the same capability
+        self.orchestrator.register_agent("agent-1", "Agent One", ["python"])
+        self.orchestrator.register_agent("agent-2", "Agent Two", ["python"])
+        self.orchestrator.register_agent("agent-3", "Agent Three (Overloaded)", ["python"])
+        self.orchestrator.register_agent("agent-4", "Agent Four (Busy)", ["python"])
+        self.orchestrator.update_agent_status("agent-4", AgentStatus.BUSY)
+
+
+        # Report resource usage for the idle agents
+        self.orchestrator.update_agent_resources("agent-1", cpu_load=50.0, memory_load=30.0) # Total: 80
+        self.orchestrator.update_agent_resources("agent-2", cpu_load=20.0, memory_load=10.0) # Total: 30 (Best)
+        self.orchestrator.update_agent_resources("agent-3", cpu_load=95.0, memory_load=50.0) # Overloaded
+
+        # Find an agent for a python task
+        best_agent = self.orchestrator.find_available_agent(["python"])
+
+        # Assert that the least loaded agent (agent-2) was chosen
+        self.assertIsNotNone(best_agent)
+        self.assertEqual(best_agent.agent_id, "agent-2")
+
     def test_find_available_agent(self):
         """Test finding an agent with the right capabilities."""
         self.orchestrator.register_agent("agent-1", "PythonAgent", ["python", "file_io"])

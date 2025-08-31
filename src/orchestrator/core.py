@@ -81,6 +81,19 @@ class Orchestrator:
         with self._lock:
             return list(self.agent_pool.values())
 
+    def update_agent_resources(self, agent_id: str, cpu_load: float, memory_load: float):
+        """Updates the resource utilization for a specific agent."""
+        with self._lock:
+            agent = self.get_agent(agent_id)
+            if agent:
+                agent.cpu_load_percent = cpu_load
+                agent.memory_load_percent = memory_load
+                agent.last_seen = time.time()
+                # We don't broadcast here to avoid flooding clients with frequent updates.
+                # Status updates will be pushed on state changes.
+            else:
+                print(f"Warning: Could not update resources for unknown agent {agent_id}")
+
     def update_agent_status(self, agent_id: str, status: AgentStatus, task_id: str | None = None):
         """Updates the status of a specific agent."""
         with self._lock:
@@ -95,14 +108,40 @@ class Orchestrator:
                 print(f"Warning: Could not update status for unknown agent {agent_id}")
 
     def find_available_agent(self, required_capabilities: List[str]) -> ManagedAgent | None:
-        """Finds an idle agent that has all the required capabilities."""
+        """
+        Finds an idle, healthy agent that has all the required capabilities,
+        preferring the one with the lowest resource load.
+        """
         with self._lock:
+            RESOURCE_THRESHOLD = 90.0  # 90% CPU or Memory
+
+            candidate_agents = []
             for agent in self.agent_pool.values():
-                if agent.status == AgentStatus.IDLE:
-                    # Check if agent has all required capabilities
-                    if all(cap in agent.capabilities for cap in required_capabilities):
-                        return agent
-            return None
+                # Basic checks: idle and has capabilities
+                if agent.status != AgentStatus.IDLE:
+                    continue
+                if not all(cap in agent.capabilities for cap in required_capabilities):
+                    continue
+
+                # Resource checks
+                if agent.cpu_load_percent >= RESOURCE_THRESHOLD:
+                    print(f"Skipping agent {agent.agent_id} due to high CPU: {agent.cpu_load_percent}%")
+                    continue
+                if agent.memory_load_percent >= RESOURCE_THRESHOLD:
+                    print(f"Skipping agent {agent.agent_id} due to high Memory: {agent.memory_load_percent}%")
+                    continue
+
+                candidate_agents.append(agent)
+
+            if not candidate_agents:
+                return None
+
+            # Sort candidates by combined resource load (lower is better)
+            candidate_agents.sort(key=lambda a: a.cpu_load_percent + a.memory_load_percent)
+
+            best_agent = candidate_agents[0]
+            print(f"Selected best agent {best_agent.agent_id} with CPU {best_agent.cpu_load_percent}% and Mem {best_agent.memory_load_percent}%")
+            return best_agent
 
     # --- Goal and Task Management ---
 
