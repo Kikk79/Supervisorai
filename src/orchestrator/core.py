@@ -16,13 +16,37 @@ class Orchestrator:
     and orchestrates their execution.
     """
 
-    def __init__(self, supervisor: SupervisorCore, llm_client: LLMClient):
+    def __init__(self, supervisor: SupervisorCore, llm_client: LLMClient, broadcast_func: callable = None, loop=None):
         self.supervisor = supervisor
         self.llm_client = llm_client
+        self.broadcast = broadcast_func
+        self.loop = loop
         self.agent_pool: Dict[str, ManagedAgent] = {}
         self.projects: Dict[str, ProjectGoal] = {}
         self._lock = threading.Lock()
         self.is_running = False
+
+    def _broadcast_status(self):
+        """Assembles and broadcasts the current orchestrator status."""
+        if not self.broadcast or not self.loop:
+            return
+
+        with self._lock:
+            status_data = {
+                "is_running": self.is_running,
+                "agent_count": len(self.agent_pool),
+                "agents": [dataclasses.asdict(a) for a in self.agent_pool.values()],
+                "project_count": len(self.projects),
+                "projects": [dataclasses.asdict(p) for p in self.projects.values()]
+            }
+
+        message = {
+            "type": "orchestrator_status",
+            "data": status_data
+        }
+
+        # Schedule the async broadcast call from the current thread
+        asyncio.run_coroutine_threadsafe(self.broadcast(message), self.loop)
 
     # --- Agent Management ---
 
@@ -44,6 +68,7 @@ class Orchestrator:
                 )
                 self.agent_pool[agent_id] = agent
             print(f"Agent registered/updated: {agent}")
+            self._broadcast_status()
             return agent
 
     def get_agent(self, agent_id: str) -> ManagedAgent | None:
@@ -65,6 +90,7 @@ class Orchestrator:
                 agent.current_task_id = task_id
                 agent.last_seen = time.time()
                 print(f"Agent {agent_id} status updated to {status}")
+                self._broadcast_status()
             else:
                 print(f"Warning: Could not update status for unknown agent {agent_id}")
 
@@ -129,6 +155,7 @@ class Orchestrator:
             project.tasks = created_tasks
             self.projects[project.goal_id] = project
             print(f"Project goal submitted and decomposed by LLM: {project.name}")
+            self._broadcast_status()
             return project
 
     def get_project_status(self, goal_id: str) -> ProjectGoal | None:
@@ -181,8 +208,9 @@ class Orchestrator:
                 print(f"Task {task.task_id} FAILED with exception: {e}")
 
         finally:
-            # Always release the agent
+            # Always release the agent and broadcast the final status
             self.update_agent_status(agent.agent_id, AgentStatus.IDLE)
+            self._broadcast_status()
 
 
     def _main_loop(self):
@@ -200,6 +228,7 @@ class Orchestrator:
                             print(f"Assigning task {task.task_id} to agent {agent.agent_id}")
                             task.status = TaskStatus.RUNNING
                             self.update_agent_status(agent.agent_id, AgentStatus.BUSY, task.task_id)
+                            self._broadcast_status()
 
                             # Run the task in a new thread to not block the main loop
                             task_thread = threading.Thread(target=self._execute_task, args=(task, agent))

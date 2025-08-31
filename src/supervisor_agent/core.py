@@ -55,8 +55,8 @@ class SupervisorCore:
         self.escalation_config = EscalationConfig()
         self.knowledge_base: Dict[str, KnowledgeBaseEntry] = {}
         
-        # Load persisted data
-        asyncio.create_task(self._load_knowledge_base())
+        # NOTE: Loading persisted data is now handled by an explicit async method
+        # that should be called after initialization.
 
     def _load_weights(self) -> Dict[str, float]:
         """Loads weights from the specified JSON file."""
@@ -255,7 +255,7 @@ class SupervisorCore:
         level_map = {
             Action.ALLOW: None,
             Action.WARN: InterventionLevel.WARNING,
-            Action.CORRECTION: InterventionLevel.CORRECTION,
+            Action.CORRECT: InterventionLevel.CORRECTION,
             Action.ESCALATE: InterventionLevel.ESCALATION,
         }
         level = level_map[best_action]

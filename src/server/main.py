@@ -21,6 +21,8 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Union
 from pathlib import Path
 from contextlib import asynccontextmanager
+from aiohttp import web
+import weakref
 
 # Make sure the 'src' directory is in the PYTHONPATH.
 # e.g., export PYTHONPATH=$PYTHONPATH:$(pwd)/src
@@ -36,11 +38,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# This needs to be done after the broadcast function is defined.
+# We will add the handler in the main execution block.
+from .broadcast_handler import WebSocketBroadcastHandler
+
+# --- Core Imports ---
+# These are required for both basic and integrated modes.
+from fastmcp import FastMCP
+from supervisor_agent.core import SupervisorCore
+from orchestrator.core import Orchestrator
+from llm.client import LLMClient
+
 try:
-    from fastmcp import FastMCP
-    # Import integrated components
+    # Import integrated-mode-only components
     from supervisor_agent.integrated_supervisor import IntegratedSupervisor, SupervisorConfig
-    from supervisor_agent.core import SupervisorCore
     from supervisor_agent import (
         MonitoringRules, EscalationConfig, TaskStatus, 
         InterventionLevel, KnowledgeBaseEntry
@@ -48,19 +59,51 @@ try:
     from supervisor_agent.expectimax_agent import AgentState
     from idea_validation.validator import Validator
     from idea_validation.data_models import Idea
-    from orchestrator.core import Orchestrator
-from llm.client import LLMClient
     INTEGRATED_MODE = True
     logger.info("Loaded integrated supervisor system")
 except ImportError as e:
     logger.error(f"Failed to import integrated modules: {e}")
-    from fastmcp import FastMCP
-    from supervisor_agent.core import SupervisorCore
     INTEGRATED_MODE = False
     logger.info("Running in basic supervisor mode")
 
 # Initialize MCP server
 mcp = FastMCP("Integrated Supervisor Agent")
+
+# --- Real-time Broadcasting Setup ---
+# Use a WeakSet to avoid memory leaks if connections are not cleaned up properly
+live_connections = weakref.WeakSet()
+
+async def broadcast(message: dict):
+    """Broadcasts a JSON message to all connected WebSocket clients."""
+    # The connections might be closed during iteration, so we must iterate over a copy.
+    for ws in list(live_connections):
+        try:
+            await ws.send_json(message)
+        except (ConnectionResetError, ConnectionAbortedError):
+            # This connection is closed, WeakSet will handle its removal eventually.
+            logger.info("A client connection was closed while broadcasting.")
+
+async def websocket_handler(request):
+    """Handles persistent WebSocket connections for real-time updates."""
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+    live_connections.add(ws)
+    logger.info(f"New client connected for real-time updates. Total clients: {len(live_connections)}")
+    try:
+        # Keep the connection alive, listening for messages.
+        async for msg in ws:
+            if msg.type == web.WSMsgType.TEXT:
+                # Can be used for ping/pong or other control messages in the future
+                if msg.data == 'close':
+                    await ws.close()
+            elif msg.type == web.WSMsgType.ERROR:
+                logger.error(f'WebSocket connection closed with exception {ws.exception()}')
+    finally:
+        # The WeakSet will automatically remove the connection once it's garbage collected.
+        logger.info(f"Client disconnected. Total clients now: {len(live_connections)}")
+    return ws
+# --- End Real-time Broadcasting Setup ---
+
 
 # Global instances
 integrated_supervisor: Optional['IntegratedSupervisor'] = None
@@ -77,7 +120,13 @@ def get_orchestrator_instance() -> Orchestrator:
 
         supervisor = integrated_supervisor if INTEGRATED_MODE else basic_supervisor
         llm_client = LLMClient() # Assumes API key is in env or will be mocked
-        orchestrator = Orchestrator(supervisor=supervisor, llm_client=llm_client)
+        # Pass the broadcast function and the event loop to the orchestrator
+        orchestrator = Orchestrator(
+            supervisor=supervisor,
+            llm_client=llm_client,
+            broadcast_func=broadcast,
+            loop=asyncio.get_running_loop()
+        )
     return orchestrator
 
 async def get_supervisor_instance():
@@ -757,12 +806,21 @@ async def startup_handler():
     """Initialize supervisor systems on startup"""
     logger.info("Starting Integrated Supervisor MCP Server")
     try:
+        # Add the WebSocket route to the MCP application for real-time updates
+        if hasattr(mcp, 'app'):
+            mcp.app.router.add_get('/ws', websocket_handler)
+            logger.info("Attached real-time WebSocket handler to /ws")
+        else:
+            logger.warning("Could not attach WebSocket handler: mcp.app not found. Real-time updates will not work unless run with a compatible ASGI server like Uvicorn.")
+
+        # Start the supervisor first, as the orchestrator depends on it.
+        supervisor = await get_supervisor_instance()
+        if hasattr(supervisor, '_load_knowledge_base'):
+             await supervisor._load_knowledge_base()
+
         # Start the orchestrator
         orch = get_orchestrator_instance()
         orch.start()
-
-        # Start the supervisor
-        supervisor = await get_supervisor_instance()
         logger.info(f"Supervisor initialized: {type(supervisor).__name__}")
         logger.info(f"Integration mode: {'Integrated' if INTEGRATED_MODE else 'Basic'}")
         return True
@@ -785,20 +843,29 @@ async def shutdown_handler():
         logger.error(f"Shutdown error: {e}")
 
 if __name__ == "__main__":
-    # Initialize and run the MCP server
-    logger.info("Starting Integrated Supervisor MCP Agent Server")
+    # This main block is for running the server in STDIO mode.
+    # To run as a web server, use a command like:
+    # uvicorn src.server.main:mcp --port 8765
+
+    logger.info("Starting Integrated Supervisor MCP Agent Server in STDIO mode.")
     
     # Create data directory if it doesn't exist
     Path("supervisor_data").mkdir(exist_ok=True)
     
     # Run startup
     loop = asyncio.get_event_loop()
+
+    # Create and add the broadcast handler to the root logger
+    # Note: Broadcasting will not work in STDIO mode as there are no WebSockets.
+    broadcast_handler = WebSocketBroadcastHandler(broadcast_func=broadcast, loop=loop)
+    logging.getLogger().addHandler(broadcast_handler)
+    logger.info("Real-time logging handler configured (will be inactive in STDIO mode).")
+
     startup_success = loop.run_until_complete(startup_handler())
     
     if startup_success:
         try:
-            # Run the MCP server
-            mcp.run()
+            mcp.run() # This runs the STDIO server
         finally:
             # Cleanup on exit
             loop.run_until_complete(shutdown_handler())
