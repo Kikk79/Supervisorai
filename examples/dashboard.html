@@ -141,6 +141,16 @@
             </div>
         </div>
 
+        <div id="cost-analysis-container" style="border-top: 2px solid #ccc; margin-top: 2em; padding-top: 2em;">
+            <h2>Cost Analysis</h2>
+            <div class="form-group">
+                <button id="get_cost_report_btn" style="background-color: #6f42c1;">Get Cost Report</button>
+            </div>
+            <div id="cost-report-display" style="margin-top: 1em; background: #f8f9fa; border: 1px solid #ddd; padding: 1em;">
+                <p>Cost report will be displayed here.</p>
+            </div>
+        </div>
+
         <div id="orchestrator-container">
             <h2>Autonomous Orchestrator</h2>
             <div class="form-group">
@@ -516,6 +526,37 @@
                     taskGraphDisplay.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
                 } finally {
                     submitGoalBtn.textContent = 'Submit Goal';
+                }
+            });
+
+            // --- Cost Analysis Logic ---
+            const getCostReportBtn = document.getElementById('get_cost_report_btn');
+            const costReportDisplay = document.getElementById('cost-report-display');
+
+            getCostReportBtn.addEventListener('click', async () => {
+                costReportDisplay.textContent = 'Fetching cost report...';
+                try {
+                    const response = await callMcpTool('get_cost_report', {});
+                    if (response.success) {
+                        const report = response.report;
+                        let reportHTML = `
+                            <h4>Cost Report</h4>
+                            <p><strong>Total Cost:</strong> $${report.total_cost.toFixed(6)}</p>
+                            <p><strong>Total LLM Calls:</strong> ${report.total_calls}</p>
+                            <p><strong>Average Cost Per Call:</strong> $${report.average_cost_per_call.toFixed(6)}</p>
+                            <h5>Cost by Model:</h5>
+                            <ul>
+                        `;
+                        for (const model in report.cost_by_model) {
+                            reportHTML += `<li><strong>${model}:</strong> $${report.cost_by_model[model].toFixed(6)}</li>`;
+                        }
+                        reportHTML += '</ul>';
+                        costReportDisplay.innerHTML = reportHTML;
+                    } else {
+                        costReportDisplay.textContent = `Error: ${response.error}`;
+                    }
+                } catch (error) {
+                    costReportDisplay.textContent = `Error: ${error.message}`;
                 }
             });
 

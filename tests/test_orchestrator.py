@@ -15,6 +15,7 @@ from orchestrator.core import Orchestrator
 from orchestrator.models import ManagedAgent, AgentStatus, ProjectGoal, TaskStatus
 from supervisor_agent.core import SupervisorCore
 from llm.client import LLMClient
+from reporting.cost_tracker import CostTracker
 
 class TestOrchestrator(unittest.TestCase):
     """Test suite for the Orchestrator."""
@@ -275,6 +276,37 @@ class TestOrchestrator(unittest.TestCase):
 
         # --- Cleanup ---
         self.orchestrator.stop()
+
+    def test_orchestrator_logs_cost(self):
+        """Test that the orchestrator's LLM calls are logged by the cost tracker."""
+        # --- Setup ---
+        # Replace the mock orchestrator with one that has a real cost tracker
+        cost_tracker = CostTracker()
+        self.orchestrator = Orchestrator(
+            supervisor=self.mock_supervisor,
+            llm_client=self.mock_llm_client,
+            loop=self.loop,
+            cost_tracker=cost_tracker
+        )
+
+        # Mock the LLM response to include usage data
+        mock_llm_response = {
+            "content": {
+                "tasks": { "task_1": { "name": "Test Task", "description": "...", "required_capabilities": [], "dependencies": [] } }
+            },
+            "usage": { "input_tokens": 100, "output_tokens": 50 }
+        }
+        self.mock_llm_client.query.return_value = mock_llm_response
+
+        # --- Execution ---
+        self.loop.run_until_complete(self.orchestrator.submit_goal("Test Cost Logging", "..."))
+
+        # --- Assertions ---
+        self.assertEqual(len(cost_tracker.call_history), 1)
+        first_call = cost_tracker.call_history[0]
+        self.assertEqual(first_call.input_tokens, 100)
+        self.assertEqual(first_call.output_tokens, 50)
+        self.assertEqual(first_call.context['action'], 'decomposition')
 
 
 if __name__ == '__main__':

@@ -16,11 +16,12 @@ class Orchestrator:
     and orchestrates their execution.
     """
 
-    def __init__(self, supervisor: SupervisorCore, llm_client: LLMClient, broadcast_func: callable = None, loop=None):
+    def __init__(self, supervisor: SupervisorCore, llm_client: LLMClient, broadcast_func: callable = None, loop=None, cost_tracker=None):
         self.supervisor = supervisor
         self.llm_client = llm_client
         self.broadcast = broadcast_func
         self.loop = loop
+        self.cost_tracker = cost_tracker
         self.agent_pool: Dict[str, ManagedAgent] = {}
         self.projects: Dict[str, ProjectGoal] = {}
         self._lock = threading.Lock()
@@ -162,7 +163,18 @@ class Orchestrator:
 
         # Query the LLM
         print("Querying LLM for task decomposition...")
-        llm_response = await self.llm_client.query(prompt, max_tokens=2048)
+        llm_response_full = await self.llm_client.query(prompt, max_tokens=2048)
+
+        # Log the call to the cost tracker
+        if self.cost_tracker and "usage" in llm_response_full:
+            self.cost_tracker.log_call(
+                model=self.llm_client.model,
+                input_tokens=llm_response_full["usage"]["input_tokens"],
+                output_tokens=llm_response_full["usage"]["output_tokens"],
+                context={"project_name": goal_name, "action": "decomposition"}
+            )
+
+        llm_response = llm_response_full.get("content", {})
 
         if "error" in llm_response or "tasks" not in llm_response:
             print(f"Error from LLM or invalid format: {llm_response}")

@@ -7,8 +7,9 @@ class LLMJudge:
     Uses a powerful external LLM to provide a nuanced judgment on an agent's output.
     """
 
-    def __init__(self, api_key: str = None, model: str = "claude-3-opus-20240229"):
+    def __init__(self, api_key: str = None, model: str = "claude-3-opus-20240229", cost_tracker=None):
         self.llm_client = LLMClient(api_key=api_key, model=model)
+        self.cost_tracker = cost_tracker
 
     def _create_prompt(self, output: str, goals: List[str]) -> str:
         """
@@ -46,14 +47,32 @@ class LLMJudge:
         prompt = self._create_prompt(output, goals)
 
         # Use the new generic client to make the query
-        response = await self.llm_client.query(prompt)
+        response_full = await self.llm_client.query(prompt)
+
+        # Log the call to the cost tracker
+        if self.cost_tracker and "usage" in response_full:
+            self.cost_tracker.log_call(
+                model=self.llm_client.model,
+                input_tokens=response_full["usage"]["input_tokens"],
+                output_tokens=response_full["usage"]["output_tokens"],
+                context={"action": "llm_judge_evaluation"}
+            )
+
+        response_content = response_full.get("content", {})
 
         # Handle mock responses or errors from the client
-        if "mock_response" in response or "error" in response:
-            return {
-                "overall_score": 0.85, # Return a default high score
-                "reasoning": response.get("mock_response") or response.get("details", "An unknown error occurred."),
+        if "mock_response" in response_full or "error" in response_full:
+             return {
+                "overall_score": 0.85, # Return a default high score for mocks/errors
+                "reasoning": response_full.get("mock_response") or response_full.get("details", "An unknown error occurred."),
                 "is_safe": True
             }
 
-        return response
+        if "mock_response" in response_content or "error" in response_content:
+            return {
+                "overall_score": 0.85, # Return a default high score
+                "reasoning": response_content.get("mock_response") or response_content.get("details", "An unknown error occurred."),
+                "is_safe": True
+            }
+
+        return response_content

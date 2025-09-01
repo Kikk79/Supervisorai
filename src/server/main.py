@@ -105,10 +105,13 @@ async def websocket_handler(request):
 # --- End Real-time Broadcasting Setup ---
 
 
+from reporting.cost_tracker import CostTracker
+
 # Global instances
 integrated_supervisor: Optional['IntegratedSupervisor'] = None
 basic_supervisor: Optional[SupervisorCore] = None
 orchestrator: Optional[Orchestrator] = None
+cost_tracker: CostTracker = CostTracker()
 
 def get_orchestrator_instance() -> Orchestrator:
     """Get the singleton orchestrator instance, creating it if necessary."""
@@ -125,7 +128,8 @@ def get_orchestrator_instance() -> Orchestrator:
             supervisor=supervisor,
             llm_client=llm_client,
             broadcast_func=broadcast,
-            loop=asyncio.get_running_loop()
+            loop=asyncio.get_running_loop(),
+            cost_tracker=cost_tracker
         )
     return orchestrator
 
@@ -144,13 +148,14 @@ async def get_supervisor_instance():
                 reporting_enabled=True,
                 framework_hooks_enabled=True
             )
-            integrated_supervisor = IntegratedSupervisor(config)
+            # Pass cost_tracker to integrated supervisor as well if needed
+            integrated_supervisor = IntegratedSupervisor(config, cost_tracker=cost_tracker)
             await integrated_supervisor.start()
             logger.info("Integrated Supervisor initialized")
         return integrated_supervisor
     else:
         if basic_supervisor is None:
-            basic_supervisor = SupervisorCore()
+            basic_supervisor = SupervisorCore(cost_tracker=cost_tracker)
             logger.info("Basic Supervisor initialized")
         return basic_supervisor
 
@@ -808,6 +813,19 @@ async def submit_goal(name: str, description: str) -> str:
         logger.error(f"Failed to submit goal: {e}")
         return json.dumps({"success": False, "error": str(e)})
 
+# ============================================================================
+# REPORTING MCP TOOLS
+# ============================================================================
+
+@mcp.tool
+async def get_cost_report() -> str:
+    """Gets a report of all LLM-related costs."""
+    try:
+        report = cost_tracker.get_cost_report()
+        return json.dumps({"success": True, "report": report}, default=str)
+    except Exception as e:
+        logger.error(f"Failed to get cost report: {e}")
+        return json.dumps({"success": False, "error": str(e)})
 
 # ============================================================================
 # SERVER STARTUP AND LIFECYCLE

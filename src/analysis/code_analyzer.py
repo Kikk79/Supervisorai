@@ -33,7 +33,7 @@ class CodeQualityAnalyzer:
 
         try:
             # Run pylint on the temporary file
-            results = Run([temp_filepath], reporter=reporter, do_exit=False)
+            results = Run([temp_filepath], reporter=reporter, exit=False)
 
             # The reporter captures the text report.
             report_text = pylint_output.getvalue()
