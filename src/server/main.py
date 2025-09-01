@@ -47,7 +47,7 @@ from .broadcast_handler import WebSocketBroadcastHandler
 from fastmcp import FastMCP
 from supervisor_agent.core import SupervisorCore
 from orchestrator.core import Orchestrator
-from llm.client import LLMClient
+from llm.manager import LLMManager
 
 try:
     # Import integrated-mode-only components
@@ -107,11 +107,26 @@ async def websocket_handler(request):
 
 from reporting.cost_tracker import CostTracker
 
+# --- LLM and Cost Configuration ---
+def load_llm_config():
+    """Loads the LLM configuration from a JSON file."""
+    config_path = Path(__file__).parent.parent.parent / "config" / "llm_config.json"
+    try:
+        with open(config_path, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Warning: Could not load llm_config.json: {e}. LLM Manager will be empty.")
+        return {}
+
+LLM_CONFIG = load_llm_config()
+
 # Global instances
 integrated_supervisor: Optional['IntegratedSupervisor'] = None
 basic_supervisor: Optional[SupervisorCore] = None
 orchestrator: Optional[Orchestrator] = None
 cost_tracker: CostTracker = CostTracker()
+llm_manager: LLMManager = LLMManager(config=LLM_CONFIG)
+
 
 def get_orchestrator_instance() -> Orchestrator:
     """Get the singleton orchestrator instance, creating it if necessary."""
@@ -122,11 +137,10 @@ def get_orchestrator_instance() -> Orchestrator:
              raise RuntimeError("Supervisor must be initialized before the orchestrator.")
 
         supervisor = integrated_supervisor if INTEGRATED_MODE else basic_supervisor
-        llm_client = LLMClient() # Assumes API key is in env or will be mocked
         # Pass the broadcast function and the event loop to the orchestrator
         orchestrator = Orchestrator(
             supervisor=supervisor,
-            llm_client=llm_client,
+            llm_manager=llm_manager,
             broadcast_func=broadcast,
             loop=asyncio.get_running_loop(),
             cost_tracker=cost_tracker
@@ -155,7 +169,7 @@ async def get_supervisor_instance():
         return integrated_supervisor
     else:
         if basic_supervisor is None:
-            basic_supervisor = SupervisorCore(cost_tracker=cost_tracker)
+            basic_supervisor = SupervisorCore(cost_tracker=cost_tracker, llm_manager=llm_manager)
             logger.info("Basic Supervisor initialized")
         return basic_supervisor
 

@@ -14,7 +14,6 @@ from unittest.mock import MagicMock, AsyncMock, patch
 from orchestrator.core import Orchestrator
 from orchestrator.models import ManagedAgent, AgentStatus, ProjectGoal, TaskStatus
 from supervisor_agent.core import SupervisorCore
-from llm.client import LLMClient
 from reporting.cost_tracker import CostTracker
 
 class TestOrchestrator(unittest.TestCase):
@@ -29,12 +28,16 @@ class TestOrchestrator(unittest.TestCase):
         self.mock_supervisor.monitor_agent = AsyncMock()
         self.mock_supervisor.validate_output = AsyncMock()
 
-        self.mock_llm_client = MagicMock(spec=LLMClient)
+        self.mock_llm_client = MagicMock()
         self.mock_llm_client.query = AsyncMock()
+
+        # Mock the LLMManager and its get_client method
+        self.mock_llm_manager = MagicMock()
+        self.mock_llm_manager.get_client.return_value = self.mock_llm_client
 
         self.orchestrator = Orchestrator(
             supervisor=self.mock_supervisor,
-            llm_client=self.mock_llm_client,
+            llm_manager=self.mock_llm_manager,
             loop=self.loop
         )
 

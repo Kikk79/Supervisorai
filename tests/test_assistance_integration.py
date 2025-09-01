@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock, AsyncMock
 import asyncio
 import sys
 import os
@@ -22,7 +22,18 @@ class TestAssistanceIntegration(unittest.TestCase):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         self.temp_dir = tempfile.mkdtemp(prefix="supervisor_assist_test_")
-        self.supervisor = SupervisorCore(data_dir=self.temp_dir)
+
+        # Mock the LLMManager
+        mock_llm_client = MagicMock()
+        # Configure the mock query to return a valid response structure
+        mock_llm_client.query = AsyncMock(return_value={
+            "content": {"text_response": "Mocked LLM suggestion."},
+            "usage": {"input_tokens": 10, "output_tokens": 5}
+        })
+        mock_llm_manager = MagicMock()
+        mock_llm_manager.get_client.return_value = mock_llm_client
+
+        self.supervisor = SupervisorCore(data_dir=self.temp_dir, llm_manager=mock_llm_manager)
         self.loop.run_until_complete(self.supervisor._load_knowledge_base())
 
     def tearDown(self):

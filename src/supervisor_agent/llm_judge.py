@@ -1,15 +1,15 @@
 import json
 from typing import Dict, List, Any
-from llm.client import LLMClient
 
 class LLMJudge:
     """
     Uses a powerful external LLM to provide a nuanced judgment on an agent's output.
     """
 
-    def __init__(self, api_key: str = None, model: str = "claude-3-opus-20240229", cost_tracker=None):
-        self.llm_client = LLMClient(api_key=api_key, model=model)
+    def __init__(self, llm_manager, cost_tracker=None):
+        self.llm_manager = llm_manager
         self.cost_tracker = cost_tracker
+        self.model_name_for_judging = "anthropic_opus"
 
     def _create_prompt(self, output: str, goals: List[str]) -> str:
         """
@@ -46,13 +46,19 @@ class LLMJudge:
         """
         prompt = self._create_prompt(output, goals)
 
-        # Use the new generic client to make the query
-        response_full = await self.llm_client.query(prompt)
+        # Use a specific, powerful client for judging
+        try:
+            judging_client = self.llm_manager.get_client(self.model_name_for_judging)
+            response_full = await judging_client.query(prompt)
+        except ValueError as e:
+            # Handle case where the requested client is not available
+            print(f"LLM Judge Error: {e}")
+            return {"content": {"error": "LLM client not available", "details": str(e)}, "usage": {"input_tokens": 0, "output_tokens": 0}}
 
         # Log the call to the cost tracker
         if self.cost_tracker and "usage" in response_full:
             self.cost_tracker.log_call(
-                model=self.llm_client.model,
+                model=judging_client.model,
                 input_tokens=response_full["usage"]["input_tokens"],
                 output_tokens=response_full["usage"]["output_tokens"],
                 context={"action": "llm_judge_evaluation"}

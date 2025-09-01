@@ -1,6 +1,6 @@
 from typing import Dict, Any
 import json
-from llm.client import LLMClient
+from llm.manager import LLMManager
 
 # Assuming the AgentTask data class will be available for type hinting
 # from supervisor_agent import AgentTask
@@ -18,8 +18,10 @@ class ResearchAssistor:
     A component that can research an agent's error and provide a suggestion.
     """
 
-    def __init__(self, api_key: str = None):
-        self.llm_client = LLMClient(api_key=api_key)
+    def __init__(self, llm_manager, cost_tracker=None):
+        self.llm_manager = llm_manager
+        self.cost_tracker = cost_tracker
+        self.synthesis_model_name = "anthropic_haiku"
 
     def _create_synthesis_prompt(self, error_details: str, webpage_content: str) -> str:
         """Creates a prompt for the LLM to synthesize a suggestion."""
@@ -77,7 +79,20 @@ class ResearchAssistor:
 
         # Step 5: Synthesize a suggestion with the LLM
         synthesis_prompt = self._create_synthesis_prompt(error_details, website_content)
-        llm_response = await self.llm_client.query(synthesis_prompt, max_tokens=256)
+
+        synthesis_client = self.llm_manager.get_client(self.synthesis_model_name)
+        response_full = await synthesis_client.query(synthesis_prompt, max_tokens=256)
+
+        # Log the call
+        if self.cost_tracker and "usage" in response_full:
+            self.cost_tracker.log_call(
+                model=synthesis_client.model,
+                input_tokens=response_full["usage"]["input_tokens"],
+                output_tokens=response_full["usage"]["output_tokens"],
+                context={"action": "research_synthesis"}
+            )
+
+        llm_response = response_full.get("content", {})
 
         if "text_response" in llm_response:
             return llm_response["text_response"]

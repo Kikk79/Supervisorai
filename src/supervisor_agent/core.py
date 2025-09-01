@@ -32,18 +32,19 @@ from analysis.code_analyzer import CodeQualityAnalyzer
 class SupervisorCore:
     """Core supervisor engine for agent monitoring and intervention"""
 
-    def __init__(self, data_dir: str = "./supervisor_data", audit_system: Optional[Any] = None, weights_file: str = "config/weights.json", cost_tracker=None):
+    def __init__(self, data_dir: str = "./supervisor_data", audit_system: Optional[Any] = None, weights_file: str = "config/weights.json", cost_tracker=None, llm_manager=None):
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(exist_ok=True)
         self.weights_file = weights_file
         self.cost_tracker = cost_tracker
+        self.llm_manager = llm_manager
         
         # Core components
         self.quality_analyzer = QualityAnalyzer()
         self.pattern_learner = PatternLearner(str(self.data_dir / "patterns.json"))
         self.coherence_analyzer = CoherenceAnalyzer()
-        self.llm_judge = LLMJudge(cost_tracker=self.cost_tracker)
-        self.research_assistor = ResearchAssistor()
+        self.llm_judge = LLMJudge(llm_manager=self.llm_manager, cost_tracker=self.cost_tracker)
+        self.research_assistor = ResearchAssistor(llm_manager=self.llm_manager, cost_tracker=self.cost_tracker)
         self.code_analyzer = CodeQualityAnalyzer()
         self.audit_logger = AuditLogger(str(self.data_dir / "audit.jsonl")) # Legacy logger
         self.audit_system = audit_system # New, more comprehensive audit system

@@ -40,8 +40,8 @@ class CodeQualityAnalyzer:
 
             # The results object has stats.
             stats = results.linter.stats
-            error_count = stats.get("error", 0)
-            warning_count = stats.get("warning", 0)
+            error_count = getattr(stats, 'error', 0)
+            warning_count = getattr(stats, 'warning', 0)
 
             # Pylint's score is out of 10.
             # We can use the score directly, or calculate our own.

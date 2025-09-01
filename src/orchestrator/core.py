@@ -8,7 +8,6 @@ import dataclasses
 from .models import ManagedAgent, AgentStatus, ProjectGoal, OrchestrationTask, TaskStatus
 from .prompts import get_decomposition_prompt
 from supervisor_agent.core import SupervisorCore
-from llm.client import LLMClient
 
 class Orchestrator:
     """
@@ -16,9 +15,9 @@ class Orchestrator:
     and orchestrates their execution.
     """
 
-    def __init__(self, supervisor: SupervisorCore, llm_client: LLMClient, broadcast_func: callable = None, loop=None, cost_tracker=None):
+    def __init__(self, supervisor: SupervisorCore, llm_manager, broadcast_func: callable = None, loop=None, cost_tracker=None):
         self.supervisor = supervisor
-        self.llm_client = llm_client
+        self.llm_manager = llm_manager
         self.broadcast = broadcast_func
         self.loop = loop
         self.cost_tracker = cost_tracker
@@ -161,14 +160,15 @@ class Orchestrator:
         # Generate the prompt for the LLM
         prompt = get_decomposition_prompt(goal_description, agents_info)
 
-        # Query the LLM
+        # Query the LLM using a specific client from the manager
         print("Querying LLM for task decomposition...")
-        llm_response_full = await self.llm_client.query(prompt, max_tokens=2048)
+        decomposition_client = self.llm_manager.get_client("anthropic_haiku")
+        llm_response_full = await decomposition_client.query(prompt, max_tokens=2048)
 
         # Log the call to the cost tracker
         if self.cost_tracker and "usage" in llm_response_full:
             self.cost_tracker.log_call(
-                model=self.llm_client.model,
+                model=decomposition_client.model,
                 input_tokens=llm_response_full["usage"]["input_tokens"],
                 output_tokens=llm_response_full["usage"]["output_tokens"],
                 context={"project_name": goal_name, "action": "decomposition"}

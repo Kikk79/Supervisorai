@@ -1,0 +1,20 @@
+{
+    "anthropic_haiku": {
+        "module_path": "llm.anthropic_client",
+        "class_name": "AnthropicClient",
+        "api_key_env_var": "ANTHROPIC_API_KEY",
+        "model": "claude-3-haiku-20240307"
+    },
+    "anthropic_opus": {
+        "module_path": "llm.anthropic_client",
+        "class_name": "AnthropicClient",
+        "api_key_env_var": "ANTHROPIC_API_KEY",
+        "model": "claude-3-opus-20240229"
+    },
+    "openai_gpt4": {
+        "module_path": "llm.openai_client",
+        "class_name": "OpenAIClient",
+        "api_key_env_var": "OPENAI_API_KEY",
+        "model": "gpt-4-turbo"
+    }
+}
