@@ -163,9 +163,8 @@ class TestOrchestrator(unittest.TestCase):
         self.assertIsNotNone(found_text_agent)
         self.assertEqual(found_text_agent.agent_id, "agent-2")
 
-    @unittest.skip("Skipping flaky test that hangs due to threading/asyncio interaction")
     @patch('orchestrator.core.Orchestrator._broadcast_status')
-    def test_full_execution_loop_simulation(self, mock_broadcast):
+    async def test_full_execution_loop_simulation(self, mock_broadcast):
         """
         An integration-style test to simulate the orchestrator's main loop.
         """
@@ -184,7 +183,7 @@ class TestOrchestrator(unittest.TestCase):
             }
         }
         self.mock_llm_client.query.return_value = mock_llm_response
-        project = asyncio.run(self.orchestrator.submit_goal("Test Project", "Test"))
+        project = await self.orchestrator.submit_goal("Test Project", "Test")
 
         task1_id = "task_code"
         task2_id = "task_test"
@@ -193,7 +192,7 @@ class TestOrchestrator(unittest.TestCase):
         self.orchestrator.start()
 
         # Give the loop time to assign the first task
-        time.sleep(0.1)
+        await asyncio.sleep(0.1)
 
         # --- Assertions for Task 1 ---
         task1 = project.tasks[task1_id]
@@ -204,7 +203,7 @@ class TestOrchestrator(unittest.TestCase):
         self.assertEqual(agent.current_task_id, task1_id)
 
         # Let the task "finish" by sleeping past its simulated work time
-        time.sleep(6)
+        await asyncio.sleep(6)
 
         # --- Assertions for Task 2 ---
         # The _execute_task thread should have completed and updated the status
@@ -212,12 +211,67 @@ class TestOrchestrator(unittest.TestCase):
 
         # Agent should be idle briefly before picking up the next task
         # We need to wait for the main loop to re-assign
-        time.sleep(3)
+        await asyncio.sleep(3)
 
         task2 = project.tasks[task2_id]
         self.assertEqual(task2.status, TaskStatus.RUNNING)
         self.assertEqual(agent.status, AgentStatus.BUSY)
         self.assertEqual(agent.current_task_id, task2_id)
+
+        # --- Cleanup ---
+        self.orchestrator.stop()
+
+    def test_sub_orchestration_flow(self):
+        """Test that a task can correctly spawn and be completed by a sub-project."""
+        # --- Setup: Mock LLM to return a plan with a sub-orchestration task ---
+        main_project_plan = {
+            "tasks": {
+                "task_simple": {"name": "A Simple Task", "description": "...", "required_capabilities": ["python"], "dependencies": []},
+                "task_complex": {"name": "A Complex Task", "description": "This is the goal for the sub-project.", "required_capabilities": ["sub_orchestration"], "dependencies": ["task_simple"]}
+            }
+        }
+        sub_project_plan = {
+            "tasks": {
+                "sub_task_1": {"name": "Sub Task 1", "description": "...", "required_capabilities": ["python"], "dependencies": []}
+            }
+        }
+        # The LLM will be called twice: once for the main project, once for the sub-project.
+        self.mock_llm_client.query.side_effect = [main_project_plan, sub_project_plan]
+
+        # Mock the supervisor to always return success
+        self.mock_supervisor.validate_output.return_value = {"intervention_result": {"intervention_required": False}}
+
+        # Register a capable agent
+        self.orchestrator.register_agent("agent-1", "The-Agent", ["python"])
+
+        # --- Execution ---
+        # 1. Submit the main goal
+        main_project = self.loop.run_until_complete(self.orchestrator.submit_goal("Main Project", "..."))
+        self.orchestrator.start()
+
+        # 2. Let the orchestrator run to complete the simple task and create the sub-project
+        time.sleep(7) # Wait for task_simple to complete
+
+        # --- Assertions for Sub-Project Creation ---
+        self.assertEqual(len(self.orchestrator.projects), 2) # Main project + sub-project
+        self.assertEqual(main_project.tasks["task_simple"].status, TaskStatus.COMPLETED)
+        self.assertEqual(main_project.tasks["task_complex"].status, TaskStatus.WAITING_ON_SUB_PROJECT)
+
+        sub_project_id = main_project.tasks["task_complex"].output_data["sub_project_id"]
+        self.assertIn(sub_project_id, main_project.sub_goal_ids)
+
+        sub_project = self.orchestrator.projects[sub_project_id]
+        self.assertEqual(sub_project.parent_goal_id, main_project.goal_id)
+
+        # 3. Manually mark the sub-project as complete to test the final part of the loop
+        with self.orchestrator._lock:
+            sub_project.status = "COMPLETED"
+
+        # 4. Let the orchestrator run again to detect the completion
+        time.sleep(3)
+
+        # --- Final Assertions ---
+        self.assertEqual(main_project.tasks["task_complex"].status, TaskStatus.COMPLETED)
 
         # --- Cleanup ---
         self.orchestrator.stop()

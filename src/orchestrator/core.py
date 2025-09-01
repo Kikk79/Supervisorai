@@ -252,26 +252,98 @@ class Orchestrator:
             self._broadcast_status()
 
 
+    async def _create_and_start_sub_project(self, parent_project: ProjectGoal, parent_task: OrchestrationTask):
+        """Creates a new project from a task and links it as a sub-project."""
+        print(f"Creating sub-project from task: {parent_task.name}")
+
+        # The new sub-project's goal is the description of the parent task.
+        sub_project_goal = parent_task.description
+        sub_project_name = f"Sub-project for: {parent_task.name}"
+
+        # Use the orchestrator's own goal submission logic to create the new project
+        sub_project = await self.submit_goal(sub_project_name, sub_project_goal)
+
+        # Link the parent and child projects
+        with self._lock:
+            sub_project.parent_goal_id = parent_project.goal_id
+            parent_project.sub_goal_ids.append(sub_project.goal_id)
+            parent_task.status = TaskStatus.WAITING_ON_SUB_PROJECT
+            # Store the sub-project ID in the task's output data for later reference
+            parent_task.output_data = {"sub_project_id": sub_project.goal_id}
+
+        print(f"Sub-project {sub_project.goal_id} created and linked.")
+        self._broadcast_status()
+
+
+    def _handle_project_completion(self, project: ProjectGoal):
+        """Checks if a completed project is a sub-project and updates its parent task."""
+        if not project.parent_goal_id:
+            return # Not a sub-project
+
+        with self._lock:
+            parent_project = self.projects.get(project.parent_goal_id)
+            if not parent_project:
+                print(f"Warning: Parent project {project.parent_goal_id} not found for sub-project {project.goal_id}")
+                return
+
+            # Find the parent task that spawned this sub-project
+            parent_task = None
+            for task in parent_project.tasks.values():
+                if task.output_data and task.output_data.get("sub_project_id") == project.goal_id:
+                    parent_task = task
+                    break
+
+            if not parent_task:
+                print(f"Warning: Parent task not found for sub-project {project.goal_id}")
+                return
+
+            # Update parent task status based on sub-project status
+            if project.status == "COMPLETED":
+                parent_task.status = TaskStatus.COMPLETED
+            else: # FAILED or CANCELLED
+                parent_task.status = TaskStatus.FAILED
+
+            parent_task.completed_at = time.time()
+            print(f"Parent task {parent_task.task_id} status updated to {parent_task.status.value} based on sub-project {project.goal_id}.")
+            self._broadcast_status()
+
+
     def _main_loop(self):
         """The main execution loop that assigns tasks to agents."""
         while self.is_running:
             with self._lock:
-                for project in self.projects.values():
-                    if project.status in ["COMPLETED", "FAILED"]:
-                        continue
+                all_projects = list(self.projects.values())
 
-                    ready_tasks = project.get_ready_tasks()
-                    for task in ready_tasks:
-                        agent = self.find_available_agent(task.required_capabilities)
-                        if agent:
-                            print(f"Assigning task {task.task_id} to agent {agent.agent_id}")
-                            task.status = TaskStatus.RUNNING
-                            self.update_agent_status(agent.agent_id, AgentStatus.BUSY, task.task_id)
-                            self._broadcast_status()
+            for project in all_projects:
+                # Handle completion of sub-projects
+                if project.status in ["COMPLETED", "FAILED"]:
+                    self._handle_project_completion(project)
+                    continue
 
-                            # Run the task in a new thread to not block the main loop
-                            task_thread = threading.Thread(target=self._execute_task, args=(task, agent))
-                            task_thread.start()
+                ready_tasks = project.get_ready_tasks()
+                for task in ready_tasks:
+                    # Check for sub-orchestration tasks
+                    if "sub_orchestration" in task.required_capabilities:
+                        # This task needs to become a new sub-project
+                        # We need to run the async method in the orchestrator's loop
+                        if self.loop:
+                            asyncio.run_coroutine_threadsafe(
+                                self._create_and_start_sub_project(project, task),
+                                self.loop
+                            )
+                        continue # Move to the next task
+
+                    # Regular task assignment
+                    agent = self.find_available_agent(task.required_capabilities)
+                    if agent:
+                        print(f"Assigning task {task.task_id} to agent {agent.agent_id}")
+                        task.status = TaskStatus.RUNNING
+                        self.update_agent_status(agent.agent_id, AgentStatus.BUSY, task.task_id)
+                        self._broadcast_status()
+
+                        # Run the task in a new thread to not block the main loop
+                        task_thread = threading.Thread(target=self._execute_task, args=(task, agent))
+                        task_thread.start()
 
             time.sleep(2) # Check for new tasks every 2 seconds
 

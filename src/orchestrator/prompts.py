@@ -33,8 +33,9 @@ Decompose the following user request into a series of tasks with dependencies.
 1.  Analyze the user's request and break it down into a logical sequence of smaller, concrete tasks.
 2.  For each task, provide a unique `task_id`, a short `name`, a clear `description`, and a list of the `required_capabilities` from the available agents.
 3.  Define the `dependencies` for each task. A task's dependencies should be a list of `task_id`s that must be completed before this task can start. The first task(s) should have an empty dependency list.
-4.  Ensure the plan is logical and covers all aspects of the user's request.
-5.  You MUST return your response as a single, valid JSON object. The JSON object should represent the project plan.
+4.  **IMPORTANT FOR COMPLEX TASKS:** If a task is itself a large, multi-step project (e.g., "build an entire mobile app" or "develop a complete user authentication system"), you must assign it the single capability `"sub_orchestration"`. The `description` for this task should be the high-level goal for the sub-project. Do not break this complex task down further yourself; simply assign it for sub-orchestration.
+5.  Ensure the plan is logical and covers all aspects of the user's request.
+6.  You MUST return your response as a single, valid JSON object. The JSON object should represent the project plan.
 
 **JSON Output Format:**
 The JSON object must have a single key, "tasks", which is an object where each key is a `task_id` and the value is the task details object.
