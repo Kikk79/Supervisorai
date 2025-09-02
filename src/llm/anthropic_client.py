@@ -1,7 +1,9 @@
 import os
 import httpx
 import json
-from typing import Dict, Any
+import base64
+import mimetypes
+from typing import Dict, Any, Optional
 
 from .base import BaseLLMClient
 
@@ -16,9 +18,9 @@ class AnthropicClient(BaseLLMClient):
         if not self.api_key or self.api_key == "YOUR_ANTHROPIC_API_KEY":
             print("Warning: ANTHROPIC_API_KEY is not configured. LLM calls will be mocked.")
 
-    async def query(self, prompt: str, max_tokens: int = 1024) -> Dict[str, Any]:
+    async def query(self, prompt: str, max_tokens: int = 1024, image_url: Optional[str] = None) -> Dict[str, Any]:
         """
-        Sends a prompt to the Anthropic API and returns the structured response.
+        Sends a prompt (and optional image) to the Anthropic API and returns the structured response.
         """
         if not self.api_key or self.api_key == "YOUR_ANTHROPIC_API_KEY":
             return {
@@ -32,15 +34,54 @@ class AnthropicClient(BaseLLMClient):
             "content-type": "application/json"
         }
 
+        messages = []
+        if image_url:
+            try:
+                # Download the image data
+                async with httpx.AsyncClient() as client:
+                    image_response = await client.get(image_url, follow_redirects=True)
+                    image_response.raise_for_status()
+
+                image_data = image_response.content
+                # Encode the image in base64
+                base64_image = base64.b64encode(image_data).decode("utf-8")
+                # Guess the media type
+                media_type, _ = mimetypes.guess_type(image_url)
+                if not media_type:
+                    media_type = "image/jpeg" # Fallback
+
+                # Construct the multi-modal message content
+                messages.append({
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": base64_image,
+                            },
+                        },
+                        {"type": "text", "text": prompt},
+                    ],
+                })
+            except Exception as e:
+                print(f"Error processing image URL {image_url}: {e}")
+                return {"content": {"error": "Image processing error", "details": str(e)}, "usage": {"input_tokens": 0, "output_tokens": 0}}
+        else:
+            # Standard text-only message
+            messages.append({"role": "user", "content": prompt})
+
+
         data = {
             "model": self.model,
             "max_tokens": max_tokens,
-            "messages": [{"role": "user", "content": prompt}]
+            "messages": messages
         }
 
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.post(self.api_url, headers=headers, json=data, timeout=30.0)
+                response = await client.post(self.api_url, headers=headers, json=data, timeout=60.0) # Increased timeout for images
                 response.raise_for_status()
 
                 response_data = response.json()

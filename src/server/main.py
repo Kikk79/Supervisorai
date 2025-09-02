@@ -841,6 +841,23 @@ async def get_cost_report() -> str:
         logger.error(f"Failed to get cost report: {e}")
         return json.dumps({"success": False, "error": str(e)})
 
+@mcp.tool
+async def evaluate_image(image_url: str, goals: List[str]) -> str:
+    """Gets a supervisor evaluation for a given image URL based on a set of goals."""
+    try:
+        supervisor = await get_supervisor_instance()
+        # We can reuse the validate_output logic for this, by creating a temporary task.
+        task_id = await supervisor.monitor_agent("image_evaluator", "dashboard", image_url, goals)
+        result = await supervisor.validate_output(
+            task_id=task_id,
+            output=image_url, # The image URL is the "output" to be evaluated
+            output_type="image"
+        )
+        return json.dumps({"success": True, "result": result}, default=str)
+    except Exception as e:
+        logger.error(f"Failed to evaluate image: {e}")
+        return json.dumps({"success": False, "error": str(e)})
+
 # ============================================================================
 # SERVER STARTUP AND LIFECYCLE
 # ============================================================================

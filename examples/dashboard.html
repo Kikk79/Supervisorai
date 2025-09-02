@@ -141,6 +141,22 @@
             </div>
         </div>
 
+        <div id="multimodal-container" style="border-top: 2px solid #ccc; margin-top: 2em; padding-top: 2em;">
+            <h2>Multi-modal Evaluation</h2>
+            <div class="form-group">
+                <label for="image_url">Image URL:</label>
+                <input type="text" id="image_url" style="width: 100%;" value="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Cat_paw_close_up.jpg/1280px-Cat_paw_close_up.jpg">
+            </div>
+            <div class="form-group">
+                <label for="image_goals">Evaluation Goals (comma-separated):</label>
+                <input type="text" id="image_goals" style="width: 100%;" value="Is this a high quality photo?, Does it contain an animal?">
+            </div>
+            <button id="evaluate_image_btn" style="background-color: #e83e8c;">Evaluate Image</button>
+            <div id="image-eval-display" style="margin-top: 1em; background: #f8f9fa; border: 1px solid #ddd; padding: 1em;">
+                <p>Image evaluation result will be displayed here.</p>
+            </div>
+        </div>
+
         <div id="cost-analysis-container" style="border-top: 2px solid #ccc; margin-top: 2em; padding-top: 2em;">
             <h2>Cost Analysis</h2>
             <div class="form-group">
@@ -557,6 +573,42 @@
                     }
                 } catch (error) {
                     costReportDisplay.textContent = `Error: ${error.message}`;
+                }
+            });
+
+            // --- Multi-modal Evaluation Logic ---
+            const evaluateImageBtn = document.getElementById('evaluate_image_btn');
+            const imageUrlInput = document.getElementById('image_url');
+            const imageGoalsInput = document.getElementById('image_goals');
+            const imageEvalDisplay = document.getElementById('image-eval-display');
+
+            evaluateImageBtn.addEventListener('click', async () => {
+                imageEvalDisplay.textContent = 'Evaluating image...';
+                try {
+                    const goals = imageGoalsInput.value.split(',').map(s => s.trim());
+                    const response = await callMcpTool('evaluate_image', {
+                        image_url: imageUrlInput.value,
+                        goals: goals
+                    });
+
+                    if (response.success) {
+                        const result = response.result;
+                        const intervention = result.intervention_result;
+                        const llm_eval = result.llm_judge_evaluation;
+                        let reportHTML = `
+                            <h4>Evaluation Result</h4>
+                            <p><strong>Intervention Required:</strong> ${intervention.intervention_required}</p>
+                            <p><strong>Reason:</strong> ${intervention.reason}</p>
+                            <h5>LLM Judge Details:</h5>
+                            <p><strong>Score:</strong> ${llm_eval.overall_score.toFixed(2)}</p>
+                            <p><strong>Reasoning:</strong> ${llm_eval.reasoning}</p>
+                        `;
+                        imageEvalDisplay.innerHTML = reportHTML;
+                    } else {
+                        imageEvalDisplay.textContent = `Error: ${response.error}`;
+                    }
+                } catch (error) {
+                    imageEvalDisplay.textContent = `Error: ${error.message}`;
                 }
             });
 

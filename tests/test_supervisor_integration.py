@@ -97,5 +97,37 @@ class TestSupervisorCodeIntegration(unittest.TestCase):
 
         self.loop.run_until_complete(run_test())
 
+    @patch('supervisor_agent.llm_judge.LLMJudge.evaluate_output', new_callable=AsyncMock)
+    def test_supervisor_handles_image_output(self, mock_evaluate_output):
+        """
+        Test that the supervisor correctly passes an image URL to the LLM Judge.
+        """
+        # --- Setup ---
+        # Configure the mock judge to return a successful evaluation
+        mock_evaluate_output.return_value = {
+            "overall_score": 0.9, "reasoning": "Looks good.", "is_safe": True
+        }
+
+        async def run_test():
+            image_url = "http://example.com/image.png"
+            task_id = await self.supervisor.monitor_agent("img_agent", "test", "gen_image", [])
+
+            # --- Execute ---
+            await self.supervisor.validate_output(
+                task_id,
+                output=image_url,
+                output_type="image"
+            )
+
+            # --- Assertions ---
+            # Check that the judge was called with the correct parameters
+            mock_evaluate_output.assert_called_once()
+            call_args = mock_evaluate_output.call_args.kwargs
+            self.assertEqual(call_args['output'], image_url)
+            self.assertEqual(call_args['image_url'], image_url)
+
+        self.loop.run_until_complete(run_test())
+
+
 if __name__ == '__main__':
     unittest.main()

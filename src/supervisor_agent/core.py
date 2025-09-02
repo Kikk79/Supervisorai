@@ -155,9 +155,11 @@ class SupervisorCore:
         )
         
         # Get a second opinion from the LLM Judge
+        image_url_for_judge = output if output_type == "image" else None
         llm_evaluation = await self.llm_judge.evaluate_output(
-            output=output,
-            goals=task.instructions
+            output=output, # For images, output is the URL, which can serve as context. For text, it's the text.
+            goals=task.instructions,
+            image_url=image_url_for_judge
         )
 
         # Combine the scores (e.g., 60% heuristic, 40% LLM)

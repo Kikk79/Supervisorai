@@ -1,5 +1,5 @@
 import json
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 class LLMJudge:
     """
@@ -40,16 +40,23 @@ class LLMJudge:
         """
         return prompt
 
-    async def evaluate_output(self, output: str, goals: List[str]) -> Dict[str, Any]:
+    async def evaluate_output(self, output: str, goals: List[str], image_url: Optional[str] = None) -> Dict[str, Any]:
         """
-        Sends the output to the LLM judge and gets a structured evaluation.
+        Sends the output (and optional image) to the LLM judge and gets a structured evaluation.
         """
+        # The prompt is the same, it just accompanies an image if one is present.
         prompt = self._create_prompt(output, goals)
 
         # Use a specific, powerful client for judging
         try:
-            judging_client = self.llm_manager.get_client(self.model_name_for_judging)
-            response_full = await judging_client.query(prompt)
+            # For image evaluation, we might want a specific vision-capable model
+            model_to_use = self.model_name_for_judging
+            if image_url:
+                # This assumes a vision model is configured with this name.
+                model_to_use = "anthropic_opus_vision"
+
+            judging_client = self.llm_manager.get_client(model_to_use)
+            response_full = await judging_client.query(prompt, image_url=image_url)
         except ValueError as e:
             # Handle case where the requested client is not available
             print(f"LLM Judge Error: {e}")
