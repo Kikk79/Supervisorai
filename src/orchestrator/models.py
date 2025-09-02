@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Set, Optional
+from typing import List, Dict, Any, Set
 from enum import Enum
 import time
 
@@ -8,7 +8,6 @@ class TaskStatus(Enum):
     PENDING = "PENDING"
     READY = "READY" # Dependencies are met, ready for assignment
     RUNNING = "RUNNING"
-    WAITING_ON_SUB_PROJECT = "WAITING_ON_SUB_PROJECT"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"
@@ -29,8 +28,6 @@ class ManagedAgent:
     status: AgentStatus = AgentStatus.IDLE
     current_task_id: str | None = None
     last_seen: float = field(default_factory=time.time)
-    cpu_load_percent: float = 0.0
-    memory_load_percent: float = 0.0
 
 @dataclass
 class OrchestrationTask:
@@ -60,8 +57,6 @@ class ProjectGoal:
     tasks: Dict[str, OrchestrationTask] = field(default_factory=dict)
     status: str = "PENDING" # PENDING, IN_PROGRESS, COMPLETED, FAILED
     created_at: float = field(default_factory=time.time)
-    parent_goal_id: Optional[str] = None
-    sub_goal_ids: List[str] = field(default_factory=list)
 
     def get_completed_task_ids(self) -> Set[str]:
         """Returns a set of all task IDs that are marked as COMPLETED."""

@@ -15,13 +15,7 @@ class TestLLMJudge(unittest.TestCase):
 
     def setUp(self):
         """Set up a new LLMJudge for each test."""
-        self.mock_llm_client = MagicMock()
-        self.mock_llm_client.query = unittest.mock.AsyncMock()
-
-        self.mock_llm_manager = MagicMock()
-        self.mock_llm_manager.get_client.return_value = self.mock_llm_client
-
-        self.judge = LLMJudge(llm_manager=self.mock_llm_manager)
+        self.judge = LLMJudge(api_key="TEST_API_KEY")
 
     def test_prompt_creation(self):
         """Test that the prompt is created correctly."""
@@ -70,23 +64,14 @@ class TestLLMJudge(unittest.TestCase):
 
     def test_placeholder_response_no_api_key(self):
         """Test that a placeholder response is returned when no API key is provided."""
-        # This test is now more about what happens if the manager can't find a client
-        # or the client itself is not configured.
-        mock_llm_manager = MagicMock()
-
-        # Simulate the manager raising an error if a client is not found
-        mock_llm_manager.get_client.side_effect = ValueError("Client not found")
-
-        judge_no_key = LLMJudge(llm_manager=mock_llm_manager)
+        judge_no_key = LLMJudge(api_key=None)
         output = "test"
         goals = ["test"]
 
-        # The evaluate_output method should gracefully handle this
         result = asyncio.run(judge_no_key.evaluate_output(output, goals))
 
-        # We expect a mock/error response, not a successful one.
-        # The exact content depends on the error handling in evaluate_output.
-        self.assertIn("error", result.get("content", {}))
+        self.assertEqual(result["overall_score"], 0.85)
+        self.assertIn("LLM client is not configured", result["reasoning"])
 
 if __name__ == '__main__':
     unittest.main()

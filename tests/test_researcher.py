@@ -17,15 +17,10 @@ class TestResearchAssistor(unittest.TestCase):
 
     def setUp(self):
         """Set up a new ResearchAssistor for each test."""
-        self.mock_llm_client = MagicMock()
-        self.mock_llm_client.query = AsyncMock()
+        self.assistor = ResearchAssistor(api_key="test_key") # Use a dummy key
 
-        self.mock_llm_manager = MagicMock()
-        self.mock_llm_manager.get_client.return_value = self.mock_llm_client
-
-        self.assistor = ResearchAssistor(llm_manager=self.mock_llm_manager)
-
-    def test_full_research_flow(self):
+    @patch('llm.client.LLMClient.query', new_callable=AsyncMock)
+    def test_full_research_flow(self, mock_llm_query):
         """
         Test the full research and suggestion flow with mocked external calls.
         """
@@ -43,10 +38,7 @@ class TestResearchAssistor(unittest.TestCase):
         mock_view_website.return_value = mock_website_content
 
         mock_llm_suggestion = "Based on my research, you should use a try-except block."
-        self.mock_llm_client.query.return_value = {
-            "content": {"text_response": mock_llm_suggestion},
-            "usage": {"input_tokens": 50, "output_tokens": 10}
-        }
+        mock_llm_query.return_value = {"text_response": mock_llm_suggestion}
 
         # --- Test Data ---
         mock_task = AgentTask(
@@ -69,8 +61,8 @@ class TestResearchAssistor(unittest.TestCase):
         mock_view_website.assert_called_once_with(url="http://stackoverflow.com/q/123")
 
         # Assert that the LLM was called with the content from the website
-        self.mock_llm_client.query.assert_called_once()
-        prompt_arg = self.mock_llm_client.query.call_args.args[0]
+        mock_llm_query.assert_called_once()
+        prompt_arg = mock_llm_query.call_args.args[0]
         self.assertIn(mock_website_content, prompt_arg)
 
         # Assert that the final suggestion is the one from the LLM

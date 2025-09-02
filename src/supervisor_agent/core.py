@@ -26,26 +26,22 @@ from .expectimax_agent import ExpectimaxAgent, AgentState, Action
 from .llm_judge import LLMJudge
 from task_coherence.coherence_analyzer import CoherenceAnalyzer
 from researcher.assistor import ResearchAssistor
-from analysis.code_analyzer import CodeQualityAnalyzer
 
 
 class SupervisorCore:
     """Core supervisor engine for agent monitoring and intervention"""
 
-    def __init__(self, data_dir: str = "./supervisor_data", audit_system: Optional[Any] = None, weights_file: str = "config/weights.json", cost_tracker=None, llm_manager=None):
+    def __init__(self, data_dir: str = "./supervisor_data", audit_system: Optional[Any] = None, weights_file: str = "config/weights.json"):
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(exist_ok=True)
         self.weights_file = weights_file
-        self.cost_tracker = cost_tracker
-        self.llm_manager = llm_manager
         
         # Core components
         self.quality_analyzer = QualityAnalyzer()
         self.pattern_learner = PatternLearner(str(self.data_dir / "patterns.json"))
         self.coherence_analyzer = CoherenceAnalyzer()
-        self.llm_judge = LLMJudge(llm_manager=self.llm_manager, cost_tracker=self.cost_tracker)
-        self.research_assistor = ResearchAssistor(llm_manager=self.llm_manager, cost_tracker=self.cost_tracker)
-        self.code_analyzer = CodeQualityAnalyzer()
+        self.llm_judge = LLMJudge()
+        self.research_assistor = ResearchAssistor()
         self.audit_logger = AuditLogger(str(self.data_dir / "audit.jsonl")) # Legacy logger
         self.audit_system = audit_system # New, more comprehensive audit system
 
@@ -59,8 +55,8 @@ class SupervisorCore:
         self.escalation_config = EscalationConfig()
         self.knowledge_base: Dict[str, KnowledgeBaseEntry] = {}
         
-        # NOTE: Loading persisted data is now handled by an explicit async method
-        # that should be called after initialization.
+        # Load persisted data
+        asyncio.create_task(self._load_knowledge_base())
 
     def _load_weights(self) -> Dict[str, float]:
         """Loads weights from the specified JSON file."""
@@ -155,11 +151,9 @@ class SupervisorCore:
         )
         
         # Get a second opinion from the LLM Judge
-        image_url_for_judge = output if output_type == "image" else None
         llm_evaluation = await self.llm_judge.evaluate_output(
-            output=output, # For images, output is the URL, which can serve as context. For text, it's the text.
-            goals=task.instructions,
-            image_url=image_url_for_judge
+            output=output,
+            goals=task.instructions
         )
 
         # Combine the scores (e.g., 60% heuristic, 40% LLM)
@@ -174,14 +168,9 @@ class SupervisorCore:
             original_goals=task.instructions
         )
         
-        # If the output is code, perform static analysis
-        code_analysis_result = None
-        if output_type == "python_code":
-            code_analysis_result = self.code_analyzer.analyze_code(output)
-
         # Check for intervention requirements
         intervention_result = await self._check_intervention_needed(
-            task, output, quality_metrics, coherence_analysis, code_analysis_result
+            task, output, quality_metrics, coherence_analysis
         )
         
         # Store output and intervention result, including the LLM judge's reasoning
@@ -191,7 +180,6 @@ class SupervisorCore:
             "output_type": output_type,
             "quality_metrics": quality_metrics.__dict__,
             "llm_judge_evaluation": llm_evaluation,
-            "code_analysis": code_analysis_result,
             "intervention_result": intervention_result,
             "metadata": metadata or {}
         }
@@ -243,22 +231,16 @@ class SupervisorCore:
         task: AgentTask,
         output: str,
         quality_metrics: QualityMetrics,
-        coherence_analysis: Dict,
-        code_analysis_result: Optional[Dict] = None
+        coherence_analysis: Dict
     ) -> Dict[str, Any]:
         """Determine if intervention is needed using the Expectimax agent."""
         
         max_tokens = getattr(self.monitoring_rules, 'max_token_threshold', 10000)
         if max_tokens == 0: max_tokens = 10000
 
-        # Combine historical errors with errors from the current code analysis
-        total_error_count = len([i for i in task.interventions if i["level"] == "ESCALATION"])
-        if code_analysis_result:
-            total_error_count += code_analysis_result.get("error_count", 0)
-
         current_state = AgentState(
             quality_score=quality_metrics.confidence_score,
-            error_count=total_error_count,
+            error_count=len([i for i in task.interventions if i["level"] == "ESCALATION"]),
             resource_usage=task.resource_usage.token_count / max_tokens,
             task_progress=len(task.outputs) / 10.0,
             drift_score=coherence_analysis["drift_score"]
@@ -273,7 +255,7 @@ class SupervisorCore:
         level_map = {
             Action.ALLOW: None,
             Action.WARN: InterventionLevel.WARNING,
-            Action.CORRECT: InterventionLevel.CORRECTION,
+            Action.CORRECTION: InterventionLevel.CORRECTION,
             Action.ESCALATE: InterventionLevel.ESCALATION,
         }
         level = level_map[best_action]

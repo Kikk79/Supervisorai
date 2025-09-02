@@ -22,9 +22,13 @@ This project includes a rich set of features, demonstrating a robust and intelli
     *   Uses an **Expectimax algorithm** (`supervisor_agent/expectimax_agent.py`) to make nuanced decisions about whether to `ALLOW`, `WARN`, `CORRECT`, or `ESCALATE` an agent's output. This is not based on simple rules, but on a probabilistic model of future outcomes.
     *   The decision-making is based on a weighted evaluation of the agent's state, including output quality, task drift, error count, and resource usage.
 
-*   **Code-Aware Supervision (New!):**
+*   **Code-Aware Supervision:**
     *   The supervisor can now understand code quality. When an agent produces Python code, the system uses the **`pylint` static analysis tool** (`analysis/code_analyzer.py`) to check for errors, code smells, and style issues.
     *   The number of errors found is factored directly into the `AgentState` passed to the Expectimax agent, making its decisions about code much more intelligent.
+
+*   **Multi-modal Supervision:**
+    *   The supervisor now has a new sense: vision. It can evaluate image-based outputs from agents.
+    *   When an agent's output is an image URL, the `LLMJudge` uses a vision-capable model (e.g., Claude 3 Opus) to evaluate the image against the task goals.
 
 *   **Feedback-Driven Learning:**
     *   The supervisor can **learn from user feedback**. The dashboard allows a human to correct a bad decision, and this feedback is used to retrain the weights of the Expectimax agent's evaluation function via `supervisor_agent/feedback_trainer.py`.
@@ -32,49 +36,55 @@ This project includes a rich set of features, demonstrating a robust and intelli
 
 ### **Orchestration Engine**
 
-*   **Autonomous Orchestrator:**
+*   **Autonomous Orchestrator with Multi-LLM Support:**
     *   Manages a pool of specialized agents with different capabilities.
-    *   Features an **LLM-powered task planner** that can take a high-level goal (e.g., "build a web scraper") and autonomously decompose it into a detailed, multi-step plan with dependencies (`orchestrator/prompts.py`).
+    *   Features an **LLM-powered task planner**. The system is architected to use multiple LLM providers concurrently (e.g., Anthropic, OpenAI), loading its configuration from `config/llm_config.json`.
+    *   Different models can be used for different tasks (e.g., a fast model for planning, a powerful model for judging) to optimize for cost and performance.
 
-*   **Sub-Orchestration (New!):**
+*   **Sub-Orchestration:**
     *   For extremely complex goals, the main orchestrator can now delegate tasks to **sub-projects**. The LLM planner is instructed to identify tasks that are themselves large projects and assign them a `sub_orchestration` capability.
     *   The orchestrator then creates a new, nested `ProjectGoal` and monitors it, allowing for hierarchical, recursive problem-solving.
 
-*   **Resource-Aware Task Assignment (New!):**
+*   **Resource-Aware Task Assignment:**
     *   The orchestrator is now aware of agent system resources. Agents can report their CPU and memory load via a new API endpoint.
     *   The `find_available_agent` logic has been enhanced to filter out agents with high resource usage (e.g., >90%) and to prioritize assigning tasks to the least-loaded agent available.
+
+*   **The Agent Factory:**
+    *   The system is capable of building new agents for itself. When a "build agent" goal is submitted, the orchestrator creates a sub-project to manage a team of coding agents that write, test, and register a new agent into the pool.
 
 ### **Assistance & UI**
 
 *   **Proactive Research Assistant:**
-    *   The supervisor can detect when an agent is "stuck" (e.g., failing repeatedly).
-    *   It then autonomously formulates a search query, uses **Google Search** to find relevant help articles, reads the content, and uses an **LLM to synthesize a helpful suggestion**.
-    *   This allows the system to solve its own problems without human intervention.
+    *   The supervisor can detect when an agent is "stuck". It then autonomously formulates a search query, uses **Google Search** to find relevant help articles, and uses an **LLM to synthesize a helpful suggestion**.
 
-*   **Interactive Dashboard with Real-Time Updates (New!):**
+*   **Cost Analysis:**
+    *   A `CostTracker` service logs every LLM call made by the system. It uses model-specific pricing to calculate the cost of each call and provides a detailed report, which can be viewed on the dashboard.
+
+*   **Interactive Dashboard with Real-Time Updates:**
     *   A comprehensive web dashboard (`examples/dashboard.html`) serves as the central UI.
-    *   The dashboard now features **real-time log and status streaming** via a dedicated WebSocket connection. The inefficient polling mechanism has been removed, making the UI highly responsive.
-    *   It includes an **interactive debugger** that visualizes the Expectimax agent's entire decision tree as a flowchart, allowing for deep "what-if" analysis.
+    *   The dashboard now features **real-time log and status streaming** via a dedicated WebSocket connection, making the UI highly responsive.
+    *   It includes an **interactive debugger** that visualizes the Expectimax agent's entire decision tree as a flowchart.
 
 ## 3. System Architecture
 
 The project is organized into a standard Python project structure:
 
 *   `src/supervisor_agent/`: Contains the core `SupervisorCore` and the `ExpectimaxAgent`.
-*   `src/orchestrator/`: Contains the `Orchestrator` and its data models for managing projects and tasks.
-*   `src/researcher/`: Contains the `ResearchAssistor` responsible for proactive help.
-*   `src/analysis/`: Contains the new `CodeQualityAnalyzer`.
-*   `src/llm/`: Contains the generic `LLMClient` for interacting with language models.
-*   `src/server/`: Contains the server (`main.py`) that exposes all functionality through a WebSocket-based API.
-*   `examples/dashboard.html`: The all-in-one web interface for interacting with the system.
-*   `tests/`: Contains unit and integration tests for the various components.
+*   `src/orchestrator/`: Contains the `Orchestrator` and its data models.
+*   `src/researcher/`: Contains the `ResearchAssistor`.
+*   `src/analysis/`: Contains the `CodeQualityAnalyzer`.
+*   `src/agent_factory/`: Contains templates for building new agents.
+*   `src/llm/`: Contains the multi-LLM client architecture (`base.py`, `manager.py`, etc.).
+*   `src/server/`: Contains the main ASGI server (`main.py`).
+*   `examples/dashboard.html`: The all-in-one web interface.
+*   `tests/`: Contains unit and integration tests.
 
 ## 4. Setup and Installation
 
 To get the project running, follow these steps:
 
 1.  **Set up a Python virtual environment:**
-    *   This project uses Python's standard `venv` module. Do not use `uv`, as it was found to be unreliable in some environments.
+    *   This project uses Python's standard `venv` module.
     ```bash
     python3 -m venv .venv
     ```
@@ -87,15 +97,16 @@ To get the project running, follow these steps:
 3.  **Install dependencies:**
     *   Install all required packages using the `pip` from your new virtual environment.
     ```bash
-    .venv/bin/pip install -r requirements.txt
+    pip install -r requirements.txt
     ```
 
 4.  **Configure API Keys (Optional):**
-    *   The system uses the Anthropic Claude 3 API for its LLM capabilities. To enable this, set the following environment variable:
-    ```bash
-    export ANTHROPIC_API_KEY="your-api-key-here"
+    *   Create a `.env` file in the root directory or set environment variables for the LLM providers you wish to use.
     ```
-    *   If the API key is not set, the LLM-powered features will return mocked responses, but the rest of the system will still be functional.
+    ANTHROPIC_API_KEY="your-anthropic-key"
+    OPENAI_API_KEY="your-openai-key"
+    ```
+    *   If API keys are not set, the relevant clients will return mocked responses.
 
 ## 5. How to Run the System
 
@@ -109,29 +120,23 @@ To get the project running, follow these steps:
 2.  **Use the Dashboard:**
     *   Open the `examples/dashboard.html` file in your web browser. This file is self-contained and will connect to the local server automatically.
 
-## 6. Future Roadmap (Planned Features)
+## 6. Future Roadmap
 
-The following features are part of the project's future roadmap and have not yet been implemented:
+This project has a rich roadmap for future development.
 
-*   **Multi-modal Supervision:** Enhance the `LLMJudge` to use vision models to evaluate the quality of non-text output like images.
-*   **Cost Analysis:** Implement a `CostTracker` to monitor token usage and provide reports on the operational cost of the system.
-*   **Interactive Goal Definition:** Create a more advanced UI that allows users to drag-and-drop tasks to create or modify the orchestrator's plans.
-*   **Authentication & Multi-User:** Add a proper user login system so that different people can manage their own agents and projects.
+### Planned Features
+*   **Interactive Goal Definition:** Create a UI for drag-and-drop task planning.
+*   **Authentication & Multi-User:** Add a proper user login system.
 
 ### Next Frontier Ideas
-
-Beyond the immediate roadmap, the following ambitious, long-term goals have been proposed:
-
-*   **The Ethics Guardian:** Implement a specialized supervisor to enforce an "ethical constitution," ensuring all agent actions align with predefined safety and ethical rules.
-*   **The Self-Improving Supervisor (Meta-Learning):** Create a supervisor that learns from the results of its own interventions to actively evolve and improve its own decision-making policies.
-*   **Predictive Intervention Engine:** Develop a system that analyzes an agent's work in real-time to predict and prevent failures before they occur.
-*   **The Agent Factory:** Enable the orchestrator to autonomously build, test, and deploy new, specialized agents in response to novel goals.
-*   **The Internal Economy & Agent Marketplace:** Create a micro-economy where agents can earn and spend credits to "hire" other agents for help, creating an emergent system for resource allocation.
-*   **Causal Memory & Analogical Reasoning:** Evolve the system's memory into a structured knowledge graph that represents cause-and-effect, allowing for more advanced, analogy-based problem-solving.
-*   **Automated Security & Vulnerability Auditor:** Implement a dedicated "Red Team" agent that constantly probes the system for security vulnerabilities.
-*   **Active Learning & Targeted Human Feedback:** Design a system that can identify when it is most uncertain and proactively ask for human guidance on the most impactful decisions.
-*   **Decentralized Swarm Orchestration:** Move from a single orchestrator to a decentralized swarm of orchestrators that can collaborate on massive goals.
-*   **Embodied AI & Physical World Control:** Connect the orchestrator to physical hardware (robotics, IoT) to allow it to execute tasks in the real world.
+*   **The Ethics Guardian:** A specialized supervisor to enforce an "ethical constitution."
+*   **The Self-Improving Supervisor (Meta-Learning):** A supervisor that learns from its own interventions to improve its policies.
+*   **Predictive Intervention Engine:** A system that analyzes an agent's work in real-time to predict and prevent failures.
+*   **Full System Autonomy:** Connect the orchestrator to external data streams to allow it to discover and propose its own goals.
+*   **Meta-Supervision:** A system that can analyze its own performance and autonomously refactor its own source code or prompts.
+*   **Human-AI Symbiosis:** Evolve the UI into a true collaborative partner with conversational planning and deeply explainable AI (XAI).
+*   **Decentralized Swarm Orchestration:** Move from a single orchestrator to a decentralized swarm of orchestrators.
+*   **Embodied AI & Physical World Control:** Connect the orchestrator to physical hardware (robotics, IoT).
 
 ## 7. Credits
 

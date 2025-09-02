@@ -3,7 +3,6 @@ from unittest.mock import MagicMock
 import time
 import sys
 import os
-import asyncio
 
 # Add the 'src' directory to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
@@ -14,36 +13,24 @@ from unittest.mock import MagicMock, AsyncMock, patch
 from orchestrator.core import Orchestrator
 from orchestrator.models import ManagedAgent, AgentStatus, ProjectGoal, TaskStatus
 from supervisor_agent.core import SupervisorCore
-from reporting.cost_tracker import CostTracker
+from llm.client import LLMClient
 
 class TestOrchestrator(unittest.TestCase):
     """Test suite for the Orchestrator."""
 
     def setUp(self):
         """Set up a new Orchestrator and mock dependencies for each test."""
-        self.loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.loop)
-
         self.mock_supervisor = MagicMock(spec=SupervisorCore)
         self.mock_supervisor.monitor_agent = AsyncMock()
         self.mock_supervisor.validate_output = AsyncMock()
 
-        self.mock_llm_client = MagicMock()
+        self.mock_llm_client = MagicMock(spec=LLMClient)
         self.mock_llm_client.query = AsyncMock()
-
-        # Mock the LLMManager and its get_client method
-        self.mock_llm_manager = MagicMock()
-        self.mock_llm_manager.get_client.return_value = self.mock_llm_client
 
         self.orchestrator = Orchestrator(
             supervisor=self.mock_supervisor,
-            llm_manager=self.mock_llm_manager,
-            loop=self.loop
+            llm_client=self.mock_llm_client
         )
-
-    def tearDown(self):
-        """Clean up the event loop after each test."""
-        self.loop.close()
 
     def test_register_agent(self):
         """Test that an agent can be registered successfully."""
@@ -124,28 +111,6 @@ class TestOrchestrator(unittest.TestCase):
         self.assertIn("Write Unit Tests", task_names)
         self.assertIn("Generate Report", task_names)
 
-    def test_find_available_agent_with_resource_awareness(self):
-        """Test that the orchestrator selects the agent with the lowest resource load."""
-        # Register three agents with the same capability
-        self.orchestrator.register_agent("agent-1", "Agent One", ["python"])
-        self.orchestrator.register_agent("agent-2", "Agent Two", ["python"])
-        self.orchestrator.register_agent("agent-3", "Agent Three (Overloaded)", ["python"])
-        self.orchestrator.register_agent("agent-4", "Agent Four (Busy)", ["python"])
-        self.orchestrator.update_agent_status("agent-4", AgentStatus.BUSY)
-
-
-        # Report resource usage for the idle agents
-        self.orchestrator.update_agent_resources("agent-1", cpu_load=50.0, memory_load=30.0) # Total: 80
-        self.orchestrator.update_agent_resources("agent-2", cpu_load=20.0, memory_load=10.0) # Total: 30 (Best)
-        self.orchestrator.update_agent_resources("agent-3", cpu_load=95.0, memory_load=50.0) # Overloaded
-
-        # Find an agent for a python task
-        best_agent = self.orchestrator.find_available_agent(["python"])
-
-        # Assert that the least loaded agent (agent-2) was chosen
-        self.assertIsNotNone(best_agent)
-        self.assertEqual(best_agent.agent_id, "agent-2")
-
     def test_find_available_agent(self):
         """Test finding an agent with the right capabilities."""
         self.orchestrator.register_agent("agent-1", "PythonAgent", ["python", "file_io"])
@@ -167,8 +132,7 @@ class TestOrchestrator(unittest.TestCase):
         self.assertIsNotNone(found_text_agent)
         self.assertEqual(found_text_agent.agent_id, "agent-2")
 
-    @patch('orchestrator.core.Orchestrator._broadcast_status')
-    async def test_full_execution_loop_simulation(self, mock_broadcast):
+    def test_full_execution_loop_simulation(self):
         """
         An integration-style test to simulate the orchestrator's main loop.
         """
@@ -187,7 +151,7 @@ class TestOrchestrator(unittest.TestCase):
             }
         }
         self.mock_llm_client.query.return_value = mock_llm_response
-        project = await self.orchestrator.submit_goal("Test Project", "Test")
+        project = asyncio.run(self.orchestrator.submit_goal("Test Project", "Test"))
 
         task1_id = "task_code"
         task2_id = "task_test"
@@ -196,7 +160,7 @@ class TestOrchestrator(unittest.TestCase):
         self.orchestrator.start()
 
         # Give the loop time to assign the first task
-        await asyncio.sleep(0.1)
+        time.sleep(0.1)
 
         # --- Assertions for Task 1 ---
         task1 = project.tasks[task1_id]
@@ -207,7 +171,7 @@ class TestOrchestrator(unittest.TestCase):
         self.assertEqual(agent.current_task_id, task1_id)
 
         # Let the task "finish" by sleeping past its simulated work time
-        await asyncio.sleep(6)
+        time.sleep(6)
 
         # --- Assertions for Task 2 ---
         # The _execute_task thread should have completed and updated the status
@@ -215,7 +179,7 @@ class TestOrchestrator(unittest.TestCase):
 
         # Agent should be idle briefly before picking up the next task
         # We need to wait for the main loop to re-assign
-        await asyncio.sleep(3)
+        time.sleep(3)
 
         task2 = project.tasks[task2_id]
         self.assertEqual(task2.status, TaskStatus.RUNNING)
@@ -224,92 +188,6 @@ class TestOrchestrator(unittest.TestCase):
 
         # --- Cleanup ---
         self.orchestrator.stop()
-
-    def test_sub_orchestration_flow(self):
-        """Test that a task can correctly spawn and be completed by a sub-project."""
-        # --- Setup: Mock LLM to return a plan with a sub-orchestration task ---
-        main_project_plan = {
-            "tasks": {
-                "task_simple": {"name": "A Simple Task", "description": "...", "required_capabilities": ["python"], "dependencies": []},
-                "task_complex": {"name": "A Complex Task", "description": "This is the goal for the sub-project.", "required_capabilities": ["sub_orchestration"], "dependencies": ["task_simple"]}
-            }
-        }
-        sub_project_plan = {
-            "tasks": {
-                "sub_task_1": {"name": "Sub Task 1", "description": "...", "required_capabilities": ["python"], "dependencies": []}
-            }
-        }
-        # The LLM will be called twice: once for the main project, once for the sub-project.
-        self.mock_llm_client.query.side_effect = [main_project_plan, sub_project_plan]
-
-        # Mock the supervisor to always return success
-        self.mock_supervisor.validate_output.return_value = {"intervention_result": {"intervention_required": False}}
-
-        # Register a capable agent
-        self.orchestrator.register_agent("agent-1", "The-Agent", ["python"])
-
-        # --- Execution ---
-        # 1. Submit the main goal
-        main_project = self.loop.run_until_complete(self.orchestrator.submit_goal("Main Project", "..."))
-        self.orchestrator.start()
-
-        # 2. Let the orchestrator run to complete the simple task and create the sub-project
-        time.sleep(7) # Wait for task_simple to complete
-
-        # --- Assertions for Sub-Project Creation ---
-        self.assertEqual(len(self.orchestrator.projects), 2) # Main project + sub-project
-        self.assertEqual(main_project.tasks["task_simple"].status, TaskStatus.COMPLETED)
-        self.assertEqual(main_project.tasks["task_complex"].status, TaskStatus.WAITING_ON_SUB_PROJECT)
-
-        sub_project_id = main_project.tasks["task_complex"].output_data["sub_project_id"]
-        self.assertIn(sub_project_id, main_project.sub_goal_ids)
-
-        sub_project = self.orchestrator.projects[sub_project_id]
-        self.assertEqual(sub_project.parent_goal_id, main_project.goal_id)
-
-        # 3. Manually mark the sub-project as complete to test the final part of the loop
-        with self.orchestrator._lock:
-            sub_project.status = "COMPLETED"
-
-        # 4. Let the orchestrator run again to detect the completion
-        time.sleep(3)
-
-        # --- Final Assertions ---
-        self.assertEqual(main_project.tasks["task_complex"].status, TaskStatus.COMPLETED)
-
-        # --- Cleanup ---
-        self.orchestrator.stop()
-
-    def test_orchestrator_logs_cost(self):
-        """Test that the orchestrator's LLM calls are logged by the cost tracker."""
-        # --- Setup ---
-        # Replace the mock orchestrator with one that has a real cost tracker
-        cost_tracker = CostTracker()
-        self.orchestrator = Orchestrator(
-            supervisor=self.mock_supervisor,
-            llm_client=self.mock_llm_client,
-            loop=self.loop,
-            cost_tracker=cost_tracker
-        )
-
-        # Mock the LLM response to include usage data
-        mock_llm_response = {
-            "content": {
-                "tasks": { "task_1": { "name": "Test Task", "description": "...", "required_capabilities": [], "dependencies": [] } }
-            },
-            "usage": { "input_tokens": 100, "output_tokens": 50 }
-        }
-        self.mock_llm_client.query.return_value = mock_llm_response
-
-        # --- Execution ---
-        self.loop.run_until_complete(self.orchestrator.submit_goal("Test Cost Logging", "..."))
-
-        # --- Assertions ---
-        self.assertEqual(len(cost_tracker.call_history), 1)
-        first_call = cost_tracker.call_history[0]
-        self.assertEqual(first_call.input_tokens, 100)
-        self.assertEqual(first_call.output_tokens, 50)
-        self.assertEqual(first_call.context['action'], 'decomposition')
 
 
 if __name__ == '__main__':

@@ -197,9 +197,8 @@ class CustomFrameworkAdapter:
 class IntegratedSupervisor:
     """Main integrated supervisor system that coordinates all components"""
     
-    def __init__(self, config: Optional[SupervisorConfig] = None, cost_tracker=None):
+    def __init__(self, config: Optional[SupervisorConfig] = None):
         self.config = config or SupervisorConfig()
-        self.cost_tracker = cost_tracker
         self.data_dir = Path(self.config.data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         
@@ -245,10 +244,7 @@ class IntegratedSupervisor:
             self._initialize_reporting_system()
 
         # Core supervisor
-        self.supervisor_core = SupervisorCore(
-            audit_system=getattr(self, 'audit_system', None),
-            cost_tracker=self.cost_tracker
-        )
+        self.supervisor_core = SupervisorCore(audit_system=getattr(self, 'audit_system', None))
         
         # Monitoring system
         if self.config.monitoring_enabled:
