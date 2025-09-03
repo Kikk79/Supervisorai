@@ -136,6 +136,77 @@ class Orchestrator:
         with self._lock:
             return self.projects.get(goal_id)
 
+    def add_task_to_project(self, goal_id: str, task_id: str, name: str, description: str, required_capabilities: List[str], dependencies: List[str]) -> OrchestrationTask:
+        """Adds a new task to an existing project."""
+        with self._lock:
+            project = self.projects.get(goal_id)
+            if not project:
+                raise ValueError(f"Project with goal_id '{goal_id}' not found.")
+
+            if task_id in project.tasks:
+                raise ValueError(f"Task with task_id '{task_id}' already exists in project.")
+
+            new_task = OrchestrationTask(
+                task_id=task_id,
+                name=name,
+                description=description,
+                required_capabilities=required_capabilities,
+                dependencies=set(dependencies)
+            )
+            project.tasks[task_id] = new_task
+            self._broadcast_status()
+            return new_task
+
+    def remove_task_from_project(self, goal_id: str, task_id: str):
+        """Removes a task from a project."""
+        with self._lock:
+            project = self.projects.get(goal_id)
+            if not project:
+                raise ValueError(f"Project with goal_id '{goal_id}' not found.")
+
+            if task_id not in project.tasks:
+                raise ValueError(f"Task with task_id '{task_id}' not found in project.")
+
+            # Also remove this task from any other task's dependencies
+            for other_task in project.tasks.values():
+                if task_id in other_task.dependencies:
+                    other_task.dependencies.remove(task_id)
+
+            del project.tasks[task_id]
+            self._broadcast_status()
+
+    def update_task_dependencies(self, goal_id: str, task_id: str, new_dependencies: List[str]):
+        """Updates the dependencies for a specific task."""
+        with self._lock:
+            project = self.projects.get(goal_id)
+            if not project:
+                raise ValueError(f"Project with goal_id '{goal_id}' not found.")
+
+            task = project.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task with task_id '{task_id}' not found in project.")
+
+            task.dependencies = set(new_dependencies)
+            self._broadcast_status()
+
+    def update_task_details(self, goal_id: str, task_id: str, new_details: Dict[str, Any]):
+        """Updates the details (name, description) of a specific task."""
+        with self._lock:
+            project = self.projects.get(goal_id)
+            if not project:
+                raise ValueError(f"Project with goal_id '{goal_id}' not found.")
+
+            task = project.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task with task_id '{task_id}' not found in project.")
+
+            if "name" in new_details:
+                task.name = new_details["name"]
+            if "description" in new_details:
+                task.description = new_details["description"]
+
+            self._broadcast_status()
+
     # --- Execution Loop ---
 
     def _execute_task(self, task: OrchestrationTask, agent: ManagedAgent):

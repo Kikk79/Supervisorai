@@ -748,6 +748,50 @@ async def submit_goal(name: str, description: str) -> str:
         logger.error(f"Failed to submit goal: {e}")
         return json.dumps({"success": False, "error": str(e)})
 
+@mcp.tool
+async def add_task_to_project(goal_id: str, task_id: str, name: str, description: str, capabilities: List[str], dependencies: List[str]) -> str:
+    """Adds a new task to an existing project."""
+    try:
+        orch = get_orchestrator_instance()
+        new_task = orch.add_task_to_project(goal_id, task_id, name, description, capabilities, dependencies)
+        import dataclasses
+        return json.dumps({"success": True, "task": dataclasses.asdict(new_task)})
+    except Exception as e:
+        logger.error(f"Failed to add task to project {goal_id}: {e}")
+        return json.dumps({"success": False, "error": str(e)})
+
+@mcp.tool
+async def remove_task_from_project(goal_id: str, task_id: str) -> str:
+    """Removes a task from a project."""
+    try:
+        orch = get_orchestrator_instance()
+        orch.remove_task_from_project(goal_id, task_id)
+        return json.dumps({"success": True, "message": f"Task {task_id} removed from project {goal_id}."})
+    except Exception as e:
+        logger.error(f"Failed to remove task {task_id} from project {goal_id}: {e}")
+        return json.dumps({"success": False, "error": str(e)})
+
+@mcp.tool
+async def update_task_dependencies(goal_id: str, task_id: str, new_dependencies: List[str]) -> str:
+    """Updates the dependencies for a specific task."""
+    try:
+        orch = get_orchestrator_instance()
+        orch.update_task_dependencies(goal_id, task_id, new_dependencies)
+        return json.dumps({"success": True, "message": f"Dependencies for task {task_id} updated."})
+    except Exception as e:
+        logger.error(f"Failed to update dependencies for task {task_id}: {e}")
+        return json.dumps({"success": False, "error": str(e)})
+
+@mcp.tool
+async def update_task_details(goal_id: str, task_id: str, new_details: Dict[str, Any]) -> str:
+    """Updates the details (name, description) of a specific task."""
+    try:
+        orch = get_orchestrator_instance()
+        orch.update_task_details(goal_id, task_id, new_details)
+        return json.dumps({"success": True, "message": f"Details for task {task_id} updated."})
+    except Exception as e:
+        logger.error(f"Failed to update details for task {task_id}: {e}")
+        return json.dumps({"success": False, "error": str(e)})
 
 # ============================================================================
 # SERVER STARTUP AND LIFECYCLE
