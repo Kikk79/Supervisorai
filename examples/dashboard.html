@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supervisor Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 2em; background-color: #f4f4f9; color: #333; }
+        .container { max-width: 1200px; margin: auto; background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1, h2 { text-align: center; color: #4a4a4a; }
+        .grid { display: grid; grid-template-columns: 1fr 2fr; gap: 2em; }
+        .controls { padding: 1em; border: 1px solid #ddd; border-radius: 8px; }
+        .dashboard { padding: 1em; }
+        .form-group { margin-bottom: 1.5em; }
+        label { display: block; margin-bottom: 0.5em; font-weight: bold; }
+        input[type="range"] { width: 100%; }
+        input[type="number"] { width: 100px; padding: 0.5em; border-radius: 4px; border: 1px solid #ccc; }
+        button { display: block; width: 100%; padding: 1em; background-color: #007bff; color: white; border: none; border-radius: 4px; font-size: 1em; cursor: pointer; transition: background-color 0.3s; margin-top: 1em;}
+        button:hover { background-color: #0056b3; }
+        #result { margin-top: 1em; padding: 1em; background-color: #e9ecef; border: 1px solid #ced4da; border-radius: 4px; text-align: center; font-size: 1.2em; font-weight: bold; min-height: 50px; }
+        .slider-value { font-weight: normal; color: #007bff; margin-left: 1em; }
+        #log-container { margin-top: 2em; }
+        #log-display { background-color: #222; color: #0f0; font-family: monospace; padding: 1em; border-radius: 4px; height: 300px; overflow-y: scroll; white-space: pre-wrap; }
+
+        /* Debugger Styles */
+        #debugger-container { border-top: 2px solid #ccc; margin-top: 2em; padding-top: 2em; }
+        .debugger-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2em; }
+        #debugger-tree-container { background: #f8f9fa; border: 1px solid #ddd; padding: 1em; height: 500px; overflow: auto; }
+        #debugger-inspector { background: #e9ecef; border: 1px solid #ddd; padding: 1em; height: 500px; overflow: auto; }
+        #debugger-inspector h4 { margin-top: 0; }
+        .tree ul { padding-left: 2em; list-style-type: none; border-left: 1px solid #ccc; }
+        .tree li { margin: 0.5em 0; }
+        .tree-node { cursor: pointer; padding: 0.25em 0.5em; border-radius: 4px; }
+        .tree-node:hover { background-color: #ddd; }
+
+        /* Orchestrator Styles */
+        #orchestrator-container { border-top: 2px solid #ccc; margin-top: 2em; padding-top: 2em; }
+        #agent-pool-display { background: #f8f9fa; border: 1px solid #ddd; padding: 1em; min-height: 100px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Supervisor Dashboard</h1>
+        <div class="grid">
+            <div class="controls">
+                <h2>Idea Validation</h2>
+                <div id="idea-validation-form">
+                    <div class="form-group">
+                        <label for="idea_description">Idea Description:</label>
+                        <textarea id="idea_description" rows="4" style="width: 100%;"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="required_skills">Required Skills (comma-separated):</label>
+                        <input type="text" id="required_skills" value="python, javascript">
+                    </div>
+                    <div class="form-group">
+                        <label for="market_niche">Market Niche:</label>
+                        <input type="text" id="market_niche" value="social media">
+                    </div>
+                    <button id="validate_idea_btn">Validate Idea</button>
+                    <div id="validation-result-display" style="margin-top: 1em; padding: 1em; background: #f8f9fa; border-radius: 4px;"></div>
+                </div>
+
+                <hr style="margin: 2em 0;">
+
+                <h2>Manual Decision Test</h2>
+                <div class="form-group">
+                    <label for="quality_score">Quality Score: <span id="quality_score_value" class="slider-value">0.8</span></label>
+                    <input type="range" id="quality_score" min="0" max="1" step="0.01" value="0.8">
+                </div>
+                <div class="form-group">
+                    <label for="resource_usage">Resource Usage: <span id="resource_usage_value" class="slider-value">0.5</span></label>
+                    <input type="range" id="resource_usage" min="0" max="1" step="0.01" value="0.5">
+                </div>
+                <div class="form-group">
+                    <label for="task_progress">Task Progress: <span id="task_progress_value" class="slider-value">0.6</span></label>
+                    <input type="range" id="task_progress" min="0" max="1" step="0.01" value="0.6">
+                </div>
+                <div class="form-group">
+                    <label for="error_count">Error Count:</label>
+                    <input type="number" id="error_count" min="0" max="10" value="1">
+                </div>
+                <button id="get_decision_btn">Get Single Decision</button>
+                <div id="result">...</div>
+            </div>
+            <div class="dashboard">
+                <h2>Decision Dashboard</h2>
+                <div style="display: flex; gap: 1em; margin-bottom: 1em;">
+                    <button id="refresh_dashboard_btn" style="flex-grow: 1;">Refresh Dashboard</button>
+                    <button id="run_training_btn" style="flex-grow: 1; background-color: #28a745;">Run Training</button>
+                </div>
+                <div id="training-status" style="margin-top: 1em; padding: 1em; background: #f8f9fa; border-radius: 4px; display: none;"></div>
+
+                <div id="chart-container" style="margin-top: 1em;">
+                    <canvas id="decisionChart"></canvas>
+                </div>
+                <div id="log-container">
+                    <h3>Decision Logs</h3>
+                    <div id="log-display"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="debugger-container">
+            <h2>Interactive Debugger</h2>
+            <div class="debugger-grid">
+                <div id="debugger-controls">
+                    <h3>What-if Scenario</h3>
+                    <div class="form-group">
+                        <label for="dbg_quality_score">Quality Score: <span id="dbg_quality_score_value" class="slider-value">0.8</span></label>
+                        <input type="range" id="dbg_quality_score" min="0" max="1" step="0.01" value="0.8">
+                    </div>
+                    <div class="form-group">
+                        <label for="dbg_resource_usage">Resource Usage: <span id="dbg_resource_usage_value" class="slider-value">0.5</span></label>
+                        <input type="range" id="dbg_resource_usage" min="0" max="1" step="0.01" value="0.5">
+                    </div>
+                    <div class="form-group">
+                        <label for="dbg_task_progress">Task Progress: <span id="dbg_task_progress_value" class="slider-value">0.6</span></label>
+                        <input type="range" id="dbg_task_progress" min="0" max="1" step="0.01" value="0.6">
+                    </div>
+                     <div class="form-group">
+                        <label for="dbg_drift_score">Drift Score: <span id="dbg_drift_score_value" class="slider-value">0.1</span></label>
+                        <input type="range" id="dbg_drift_score" min="0" max="1" step="0.01" value="0.1">
+                    </div>
+                    <div class="form-group">
+                        <label for="dbg_error_count">Error Count:</label>
+                        <input type="number" id="dbg_error_count" min="0" max="10" value="1">
+                    </div>
+                    <button id="get_trace_btn" style="background-color: #fd7e14;">Generate Debug Trace</button>
+                </div>
+                <div id="debugger-inspector">
+                    <h4>Node Inspector</h4>
+                    <p>Click on a node in the tree to see its details here.</p>
+                </div>
+            </div>
+            <div id="debugger-tree-container">
+                <!-- Tree will be rendered here by JavaScript -->
+            </div>
+        </div>
+
+        <div id="orchestrator-container">
+            <h2>Autonomous Orchestrator</h2>
+            <div class="form-group">
+                <button id="register_agent_btn" style="background-color: #17a2b8;">Register Sample Agent</button>
+                <button id="refresh_orchestrator_status_btn" style="background-color: #6c757d;">Refresh Status</button>
+            </div>
+            <div id="agent-pool-display">
+                <p>Agent pool status will be displayed here.</p>
+            </div>
+            <hr style="margin: 2em 0;">
+            <h4>Submit New Goal</h4>
+            <div class="form-group">
+                <label for="goal_name">Goal Name:</label>
+                <input type="text" id="goal_name" style="width: 100%;" value="Scraping Script Project">
+            </div>
+            <div class="form-group">
+                <label for="goal_description">Goal Description:</label>
+                <textarea id="goal_description" rows="3" style="width: 100%;">Create a Python script that can scrape a website for news articles.</textarea>
+            </div>
+            <button id="submit_goal_btn" style="background-color: #0069d9;">Submit Goal</button>
+            <div id="task-graph-display" style="margin-top: 1em; background: #f8f9fa; border: 1px solid #ddd; padding: 1em;">
+                <p>New project plan will be displayed here.</p>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            mermaid.initialize({ startOnLoad: false });
+
+            // --- Helper for API calls ---
+            const callMcpTool = async (tool, args) => {
+                const socket = new WebSocket('ws://localhost:8765');
+                return new Promise((resolve, reject) => {
+                    socket.onopen = () => {
+                        socket.send(JSON.stringify({ tool, args }));
+                    };
+                    socket.onmessage = (event) => {
+                        try {
+                            const response = JSON.parse(event.data);
+                            resolve(response);
+                        } catch (e) {
+                            reject(new Error('Could not parse server response.'));
+                        } finally {
+                            socket.close();
+                        }
+                    };
+                    socket.onerror = (error) => {
+                        reject(new Error('Could not connect to the supervisor server.'));
+                    };
+                });
+            };
+
+            // --- Manual Test Form Logic ---
+            const qualityScoreSlider = document.getElementById('quality_score');
+            const resourceUsageSlider = document.getElementById('resource_usage');
+            const taskProgressSlider = document.getElementById('task_progress');
+            const errorCountInput = document.getElementById('error_count');
+            const getDecisionBtn = document.getElementById('get_decision_btn');
+            const resultDiv = document.getElementById('result');
+
+            qualityScoreSlider.oninput = () => document.getElementById('quality_score_value').textContent = qualityScoreSlider.value;
+            resourceUsageSlider.oninput = () => document.getElementById('resource_usage_value').textContent = resourceUsageSlider.value;
+            taskProgressSlider.oninput = () => document.getElementById('task_progress_value').textContent = taskProgressSlider.value;
+
+            getDecisionBtn.addEventListener('click', async () => {
+                resultDiv.textContent = 'Getting decision...';
+                try {
+                    const response = await callMcpTool('get_minimax_decision', {
+                        quality_score: parseFloat(qualityScoreSlider.value),
+                        error_count: parseInt(errorCountInput.value, 10),
+                        resource_usage: parseFloat(resourceUsageSlider.value),
+                        task_progress: parseFloat(taskProgressSlider.value)
+                    });
+                    if (response.success) {
+                        resultDiv.textContent = `Decision: ${response.decision}`;
+                    } else {
+                        resultDiv.textContent = `Error: ${response.error}`;
+                    }
+                } catch (error) {
+                    resultDiv.textContent = `Error: ${error.message}`;
+                }
+            });
+
+            // --- Idea Validation Logic ---
+            const validateIdeaBtn = document.getElementById('validate_idea_btn');
+            const ideaDescription = document.getElementById('idea_description');
+            const requiredSkills = document.getElementById('required_skills');
+            const marketNiche = document.getElementById('market_niche');
+            const validationResultDisplay = document.getElementById('validation-result-display');
+
+            validateIdeaBtn.addEventListener('click', async () => {
+                validationResultDisplay.textContent = 'Validating...';
+                try {
+                    const response = await callMcpTool('validate_idea', {
+                        description: ideaDescription.value,
+                        required_skills: requiredSkills.value.split(',').map(s => s.trim()),
+                        required_apis: [],
+                        estimated_time_hours: 50,
+                        market_niche: marketNiche.value
+                    });
+                    if (response.success) {
+                        validationResultDisplay.innerHTML = `
+                            <h3>Validation Report</h3>
+                            <p><strong>Score:</strong> ${response.report.overall_score.toFixed(2)}</p>
+                            <p><strong>Summary:</strong> ${response.report.summary}</p>
+                            <ul>
+                                ${response.report.findings.map(f => `<li><strong>${f.risk_level}:</strong> ${f.message}</li>`).join('')}
+                            </ul>
+                        `;
+                    } else {
+                        validationResultDisplay.textContent = `Error: ${response.error}`;
+                    }
+                } catch (error) {
+                    validationResultDisplay.textContent = `Error: ${error.message}`;
+                }
+            });
+
+            // --- Decision Dashboard Logic ---
+            const refreshDashboardBtn = document.getElementById('refresh_dashboard_btn');
+            const runTrainingBtn = document.getElementById('run_training_btn');
+            const trainingStatusDiv = document.getElementById('training-status');
+            const logDisplay = document.getElementById('log-display');
+            const ctx = document.getElementById('decisionChart').getContext('2d');
+            let decisionChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: [], datasets: [{ label: 'Decision Score', data: [], borderColor: 'rgb(75, 192, 192)', tension: 0.1 }] }
+            });
+
+            const fetchDashboardData = async () => {
+                logDisplay.textContent = 'Fetching logs...';
+                try {
+                    const response = await callMcpTool('get_decision_logs', { limit: 50 });
+                    if (response.success) {
+                        renderLogs(response.logs);
+                        updateChart(response.logs);
+                    } else {
+                        logDisplay.textContent = `Error: ${response.error}`;
+                    }
+                } catch (error) {
+                    logDisplay.textContent = `Error: ${error.message}`;
+                }
+            };
+
+            const updateChart = (logs) => {
+                if (!logs || logs.length === 0) return;
+                logs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                const labels = logs.map(log => new Date(log.timestamp).toLocaleTimeString());
+                const scores = logs.map(log => log.metadata.decision_details.confidence);
+                decisionChart.data.labels = labels;
+                decisionChart.data.datasets[0].data = scores;
+                decisionChart.update();
+            };
+
+            const renderLogs = (logs) => {
+                logDisplay.innerHTML = '';
+                if (!logs || logs.length === 0) {
+                    logDisplay.innerHTML = '<p style="color: #888;">No decision logs found.</p>';
+                    return;
+                }
+                const logList = document.createElement('ul');
+                logList.style.listStyle = 'none';
+                logList.style.padding = '0';
+                logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                logs.forEach(log => {
+                    const item = document.createElement('li');
+                    item.style.marginBottom = '1em';
+                    item.style.borderBottom = '1px solid #444';
+                    item.style.paddingBottom = '1em';
+                    const details = log.metadata.decision_details;
+
+                    if (details.level === 'assistance') {
+                        item.style.background = '#fffbe6';
+                        item.style.borderLeft = '5px solid #ffc107';
+                        item.style.paddingLeft = '1em';
+                    }
+
+                    const button = document.createElement('button');
+                    button.className = 'correct-btn';
+                    button.textContent = 'Correct this Decision';
+                    button.dataset.eventId = log.id;
+                    // Store the necessary context for feedback submission
+                    button.dataset.context = JSON.stringify(details);
+
+                    item.innerHTML = `
+                        <strong>Action:</strong> ${details.action} |
+                        <strong>Score:</strong> ${details.confidence.toFixed(2)} |
+                        <strong>Time:</strong> ${new Date(log.timestamp).toLocaleString()}
+                        <br>
+                        <strong>Reason:</strong> ${details.reason}<br>
+                    `;
+                    item.appendChild(button);
+                    logList.appendChild(item);
+                });
+                logDisplay.appendChild(logList);
+            };
+
+            logDisplay.addEventListener('click', async (e) => {
+                if (e.target.classList.contains('correct-btn')) {
+                    const button = e.target;
+                    const eventId = button.dataset.eventId;
+                    const context = JSON.parse(button.dataset.context);
+                    const correctedAction = prompt(`Event ID: ${eventId}\nWhat should the correct action have been? (ALLOW, WARN, CORRECT, ESCALATE)`);
+
+                    if (correctedAction && ['ALLOW', 'WARN', 'CORRECT', 'ESCALATE'].includes(correctedAction.toUpperCase())) {
+                        button.textContent = 'Submitting...';
+                        button.disabled = true;
+                        try {
+                            const response = await callMcpTool('submit_feedback', {
+                                event_id: eventId,
+                                corrected_action: correctedAction.toUpperCase(),
+                                decision_context: context
+                            });
+                            if (response.success) {
+                                button.textContent = 'Feedback Submitted!';
+                            } else {
+                                alert(`Error: ${response.error}`);
+                                button.textContent = 'Correct this Decision';
+                                button.disabled = false;
+                            }
+                        } catch (error) {
+                            alert(`Error: ${error.message}`);
+                            button.textContent = 'Correct this Decision';
+                            button.disabled = false;
+                        }
+                    }
+                }
+            });
+
+            runTrainingBtn.addEventListener('click', async () => {
+                trainingStatusDiv.style.display = 'block';
+                trainingStatusDiv.textContent = 'Starting training...';
+                trainingStatusDiv.style.color = '#333';
+                try {
+                    const response = await callMcpTool('run_training', {});
+                    if (response.success) {
+                        trainingStatusDiv.style.color = 'green';
+                        trainingStatusDiv.innerHTML = `
+                            <strong>Training Complete!</strong>
+                            <pre>${JSON.stringify(response.new_weights, null, 2)}</pre>
+                        `;
+                    } else {
+                        trainingStatusDiv.style.color = 'red';
+                        trainingStatusDiv.textContent = `Training Failed: ${response.error}`;
+                    }
+                } catch(error) {
+                    trainingStatusDiv.style.color = 'red';
+                    trainingStatusDiv.textContent = `Training Failed: ${error.message}`;
+                }
+            });
+
+            refreshDashboardBtn.addEventListener('click', fetchDashboardData);
+
+            // Initial load
+            fetchDashboardData();
+
+            // --- Interactive Debugger Logic ---
+            const dbgQualitySlider = document.getElementById('dbg_quality_score');
+            const dbgResourceSlider = document.getElementById('dbg_resource_usage');
+            const dbgProgressSlider = document.getElementById('dbg_task_progress');
+            const dbgDriftSlider = document.getElementById('dbg_drift_score');
+            const dbgErrorInput = document.getElementById('dbg_error_count');
+            const getTraceBtn = document.getElementById('get_trace_btn');
+            const treeContainer = document.getElementById('debugger-tree-container');
+            const inspectorPanel = document.getElementById('debugger-inspector');
+
+            dbgQualitySlider.oninput = () => document.getElementById('dbg_quality_score_value').textContent = dbgQualitySlider.value;
+            dbgResourceSlider.oninput = () => document.getElementById('dbg_resource_usage_value').textContent = dbgResourceSlider.value;
+            dbgProgressSlider.oninput = () => document.getElementById('dbg_task_progress_value').textContent = dbgProgressSlider.value;
+            dbgDriftSlider.oninput = () => document.getElementById('dbg_drift_score_value').textContent = dbgDriftSlider.value;
+
+            const renderTree = async (node) => {
+                const container = document.getElementById('debugger-tree-container');
+                container.innerHTML = ''; // Clear previous tree
+
+                let idCounter = 0;
+                const nodeDataMap = new Map();
+
+                function buildMermaidString(node, parentId) {
+                    let str = '';
+                    const nodeId = `node${idCounter++}`;
+                    nodeDataMap.set(nodeId, { state: node.state, evaluation: node.evaluation });
+
+                    // Sanitize node name for Mermaid syntax
+                    const nodeName = node.name.replace(/"/g, '#quot;');
+                    str += `${nodeId}("${nodeName}")\n`;
+
+                    if (parentId) {
+                        str += `${parentId} --> ${nodeId}\n`;
+                    }
+
+                    if (node.children && node.children.length > 0) {
+                        node.children.forEach(child => {
+                            str += buildMermaidString(child, nodeId);
+                        });
+                    }
+                    return str;
+                }
+
+                const mermaidString = `graph TD;\n${buildMermaidString(node, null)}`;
+
+                try {
+                    const { svg } = await mermaid.render('debugger-graph', mermaidString);
+                    container.innerHTML = svg;
+
+                    // Add click listeners to the new SVG nodes
+                    nodeDataMap.forEach((data, nodeId) => {
+                        const svgNode = container.querySelector(`#${nodeId}`);
+                        if (svgNode) {
+                            svgNode.style.cursor = 'pointer';
+                            svgNode.addEventListener('click', () => {
+                                updateInspector(data.state, data.evaluation);
+                            });
+                        }
+                    });
+
+                } catch (e) {
+                    container.textContent = 'Error rendering graph: ' + e.message;
+                    console.error(e);
+                }
+            };
+
+            const updateInspector = (state, evaluation) => {
+                inspectorPanel.innerHTML = '<h4>Node Inspector</h4>';
+                if (!state || Object.keys(state).length === 0) {
+                    inspectorPanel.innerHTML += '<p>No state data for this node.</p>';
+                    return;
+                }
+
+                let content = '<h5>State:</h5>';
+                content += `<pre>${JSON.stringify(state, null, 2)}</pre>`;
+
+                if (evaluation && Object.keys(evaluation).length > 0) {
+                    content += '<h5>Evaluation:</h5>';
+                    content += `<pre>${JSON.stringify(evaluation, null, 2)}</pre>`;
+                }
+                inspectorPanel.innerHTML += content;
+            };
+
+            treeContainer.addEventListener('click', (e) => {
+                const nodeDiv = e.target.closest('.tree-node');
+                if (nodeDiv) {
+                    const state = JSON.parse(nodeDiv.dataset.state);
+                    const evaluation = JSON.parse(nodeDiv.dataset.evaluation);
+                    updateInspector(state, evaluation);
+                }
+            });
+
+            getTraceBtn.addEventListener('click', async () => {
+                treeContainer.innerHTML = 'Generating trace...';
+                inspectorPanel.innerHTML = '<h4>Node Inspector</h4><p>Click on a node in the tree to see its details here.</p>';
+                try {
+                    const response = await callMcpTool('get_decision_trace', {
+                        quality_score: parseFloat(dbgQualitySlider.value),
+                        error_count: parseInt(dbgErrorInput.value, 10),
+                        resource_usage: parseFloat(dbgResourceSlider.value),
+                        task_progress: parseFloat(dbgProgressSlider.value),
+                        drift_score: parseFloat(dbgDriftSlider.value)
+                    });
+
+                    if (response.success) {
+                        await renderTree(response.trace);
+                    } else {
+                        treeContainer.textContent = `Error: ${response.error}`;
+                    }
+                } catch (error) {
+                    treeContainer.textContent = `Error: ${error.message}`;
+                }
+            });
+
+            // --- Orchestrator Logic ---
+            const registerAgentBtn = document.getElementById('register_agent_btn');
+            const refreshOrchestratorBtn = document.getElementById('refresh_orchestrator_status_btn');
+            const agentPoolDisplay = document.getElementById('agent-pool-display');
+
+            const refreshOrchestratorStatus = async () => {
+                try {
+                    const response = await callMcpTool('get_orchestrator_status', {});
+                    if (response.success) {
+                        // Render Agent Pool
+                        agentPoolDisplay.innerHTML = '<h4>Agent Pool</h4>';
+                        const agents = response.status.agents;
+                        if (agents.length === 0) {
+                            agentPoolDisplay.innerHTML += '<p>No agents registered.</p>';
+                        } else {
+                            const ul = document.createElement('ul');
+                            agents.forEach(agent => {
+                                const li = document.createElement('li');
+                                li.textContent = `ID: ${agent.agent_id} | Name: ${agent.name} | Status: ${agent.status} | Caps: [${agent.capabilities.join(', ')}]`;
+                                ul.appendChild(li);
+                            });
+                            agentPoolDisplay.appendChild(ul);
+                        }
+
+                        // Render Projects
+                        const projects = response.status.projects;
+                        if (projects.length > 0) {
+                             taskGraphDisplay.innerHTML = '<h4>Active Projects</h4>';
+                             projects.forEach(async (project, index) => {
+                                const projectDiv = document.createElement('div');
+                                projectDiv.innerHTML = `<h5>${project.name} (Status: ${project.status})</h5>`;
+
+                                // Build Mermaid string for the task graph
+                                let mermaidString = 'graph TD;\n';
+                                for (const taskId in project.tasks) {
+                                    const task = project.tasks[taskId];
+                                    const taskName = task.name.replace(/"/g, '#quot;');
+                                    mermaidString += `    ${taskId}["[${task.status}] ${taskName}"]\n`;
+                                    if (task.dependencies.length > 0) {
+                                        task.dependencies.forEach(dep => {
+                                            mermaidString += `    ${dep} --> ${taskId}\n`;
+                                        });
+                                    }
+                                }
+
+                                const mermaidContainer = document.createElement('div');
+                                mermaidContainer.className = 'mermaid';
+                                mermaidContainer.textContent = mermaidString;
+
+                                projectDiv.appendChild(mermaidContainer);
+                                taskGraphDisplay.appendChild(projectDiv);
+                             });
+                             // Render all mermaid graphs
+                             await mermaid.run();
+                        }
+
+                    } else {
+                        agentPoolDisplay.textContent = `Error: ${response.error}`;
+                    }
+                } catch (error) {
+                    agentPoolDisplay.textContent = `Error: ${error.message}`;
+                }
+            };
+
+            registerAgentBtn.addEventListener('click', async () => {
+                registerAgentBtn.textContent = 'Registering...';
+                try {
+                    const agentId = `agent-${Math.random().toString(36).substr(2, 5)}`;
+                    const response = await callMcpTool('register_agent', {
+                        agent_id: agentId,
+                        name: "Coder Agent",
+                        capabilities: ["python", "file_io", "test_execution"]
+                    });
+                    if (response.success) {
+                        await refreshOrchestratorStatus();
+                    } else {
+                        alert(`Error registering agent: ${response.error}`);
+                    }
+                } catch (error) {
+                    alert(`Error: ${error.message}`);
+                } finally {
+                    registerAgentBtn.textContent = 'Register Sample Agent';
+                }
+            });
+
+            refreshOrchestratorBtn.addEventListener('click', refreshOrchestratorStatus);
+
+            // Initial status load and polling
+            refreshOrchestratorStatus();
+            setInterval(refreshOrchestratorStatus, 5000); // Refresh every 5 seconds
+
+            // --- Goal Submission Logic ---
+            const goalNameInput = document.getElementById('goal_name');
+            const goalDescInput = document.getElementById('goal_description');
+            const submitGoalBtn = document.getElementById('submit_goal_btn');
+            const taskGraphDisplay = document.getElementById('task-graph-display');
+
+            submitGoalBtn.addEventListener('click', async () => {
+                submitGoalBtn.textContent = 'Submitting...';
+                taskGraphDisplay.innerHTML = '<p>Generating plan...</p>';
+                try {
+                    const response = await callMcpTool('submit_goal', {
+                        name: goalNameInput.value,
+                        description: goalDescInput.value
+                    });
+                    if (response.success) {
+                        taskGraphDisplay.innerHTML = `<h4>Project Plan: ${response.project.name}</h4>`;
+                        const tasks = response.project.tasks;
+                        const ul = document.createElement('ul');
+                        for (const taskId in tasks) {
+                            const task = tasks[taskId];
+                            const li = document.createElement('li');
+                            let depText = task.dependencies.length > 0 ? ` (depends on ${task.dependencies.join(', ')})` : '';
+                            li.textContent = `[${task.status}] ${task.name}${depText}`;
+                            ul.appendChild(li);
+                        }
+                        taskGraphDisplay.appendChild(ul);
+                    } else {
+                        taskGraphDisplay.innerHTML = `<p style="color: red;">Error: ${response.error}</p>`;
+                    }
+                } catch (error) {
+                    taskGraphDisplay.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+                } finally {
+                    submitGoalBtn.textContent = 'Submit Goal';
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>
